@@ -5,23 +5,32 @@ import { getFirestore } from 'firebase/firestore';
 // 1. Get config from injected global __firebase_config (production/sandbox)
 let config = {};
 
+// 1. Get config from injected global __firebase_config (production/sandbox)
 if (typeof __firebase_config !== 'undefined') {
   try {
-    config = typeof __firebase_config === 'string' ? JSON.parse(__firebase_config) : __firebase_config;
+    const parsedConfig = typeof __firebase_config === 'string' ? JSON.parse(__firebase_config) : __firebase_config;
+    if (parsedConfig && parsedConfig.apiKey) {
+      config = parsedConfig;
+    }
   } catch (e) {
     console.error("Failed to parse __firebase_config global:", e);
   }
 }
+
 // 2. Fallback to Vite environment variables for local development (.env)
-else if (import.meta.env && import.meta.env.VITE_FIREBASE_CONFIG) {
+if (!config.apiKey && import.meta.env && import.meta.env.VITE_FIREBASE_CONFIG) {
   try {
-    config = JSON.parse(import.meta.env.VITE_FIREBASE_CONFIG);
+    const parsedConfig = JSON.parse(import.meta.env.VITE_FIREBASE_CONFIG);
+    if (parsedConfig && parsedConfig.apiKey) {
+      config = parsedConfig;
+    }
   } catch (e) {
     console.error("Failed to parse VITE_FIREBASE_CONFIG env variable:", e);
   }
 }
+
 // 3. Fallback to individual Vite environment variables
-else if (import.meta.env && import.meta.env.VITE_FIREBASE_API_KEY) {
+if (!config.apiKey && import.meta.env && import.meta.env.VITE_FIREBASE_API_KEY) {
   config = {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
     authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -37,24 +46,17 @@ const hasValidConfig = config && config.apiKey;
 
 if (!hasValidConfig) {
   console.warn(
-    "⚠️ Firebase configuration is missing! Local development requires a .env file.\n" +
-    "Please create a .env file in the root directory with your Firebase config.\n" +
-    "Example:\n" +
-    "VITE_FIREBASE_API_KEY=your-api-key\n" +
-    "VITE_FIREBASE_AUTH_DOMAIN=your-auth-domain\n" +
-    "...\n" +
-    "Or:\n" +
-    "VITE_FIREBASE_CONFIG={\"apiKey\":\"...\",\"authDomain\":\"...\",...}"
+    "⚠️ Firebase configuration was not found in environment variables! Using fallback configuration."
   );
 
-  // Use a placeholder config to prevent immediate initialization crash on local startup.
+  // Use actual configuration as fallback if env variables are missing during build
   config = {
-    apiKey: "placeholder-api-key-for-local-development",
-    authDomain: "placeholder-auth-domain",
-    projectId: "placeholder-project-id",
-    storageBucket: "placeholder-storage-bucket",
-    messagingSenderId: "placeholder-messaging-sender-id",
-    appId: "placeholder-app-id"
+    apiKey: "AIzaSyDESCa7MNP_h8aVNPDcv1eBJ7pJD8Pqm-M",
+    authDomain: "thebe-institute.firebaseapp.com",
+    projectId: "thebe-institute",
+    storageBucket: "thebe-institute.firebasestorage.app",
+    messagingSenderId: "818338205348",
+    appId: "1:818338205348:web:0bccb60683a52d7917e031"
   };
 }
 
