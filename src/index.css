@@ -1,0 +1,122 @@
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&family=Tajawal:wght@300;400;500;700;900&display=swap');
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --primary-janzari: #0e5e6f; /* Janzari Teal */
+  --primary-light: #178a9e;
+  --pistachio-green: #bfebd4; /* Pistachio Green */
+  --pistachio-dark: #2c5e43;
+  --dark-bg: #09171a;
+  --dark-card: rgba(13, 31, 36, 0.95);
+  --light-bg: #f3f9f6;
+  --light-card: rgba(255, 255, 255, 0.97);
+}
+
+body {
+  font-family: 'Cairo', 'Tajawal', sans-serif;
+  direction: rtl;
+  overflow-x: hidden;
+}
+
+/* Beautiful Deep Janzari & Pistachio Academic Background */
+.academic-bg {
+  background: radial-gradient(circle at 10% 20%, rgba(14, 94, 111, 0.15) 0%, transparent 45%),
+              radial-gradient(circle at 90% 80%, rgba(191, 235, 212, 0.25) 0%, transparent 45%),
+              linear-gradient(135deg, #f0f7f4 0%, #e2eedc 100%);
+  background-size: cover;
+}
+
+.dark .academic-bg {
+  background: radial-gradient(circle at 10% 20%, rgba(14, 94, 111, 0.35) 0%, transparent 45%),
+              radial-gradient(circle at 90% 80%, rgba(44, 94, 67, 0.3) 0%, transparent 45%),
+              linear-gradient(135deg, #071417 0%, #0d2328 100%);
+  background-size: cover;
+}
+
+/* Glassmorphism with Ultimate Contrast Borders */
+.glass-premium {
+  background: var(--light-card);
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+  border: 2px solid rgba(14, 94, 111, 0.22);
+  box-shadow: 0 10px 40px -10px rgba(7, 20, 23, 0.12);
+}
+
+.dark .glass-premium {
+  background: var(--dark-card);
+  border: 2px solid rgba(191, 235, 212, 0.1);
+  box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.65);
+}
+
+/* Janzari Primary Buttons */
+.btn-primary {
+  background: linear-gradient(135deg, #0e5e6f 0%, #178a9e 100%);
+  box-shadow: 0 4px 15px rgba(14, 94, 111, 0.3);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.btn-primary:hover {
+  box-shadow: 0 6px 20px rgba(14, 94, 111, 0.5);
+  transform: translateY(-2px);
+}
+
+/* Custom Input Styling (Pistachio Focus Borders & Ultra-High Text Contrast) */
+.input-academic {
+  background: #ffffff;
+  border: 2px solid #82af96;
+  color: #051619;
+  transition: all 0.25s ease;
+}
+.input-academic:focus {
+  border-color: #0e5e6f;
+  box-shadow: 0 0 0 3px rgba(14, 94, 111, 0.18);
+}
+
+.dark .input-academic {
+  background: #09171a;
+  border: 2px solid #3c6550;
+  color: #f0f7f4;
+}
+.dark .input-academic:focus {
+  border-color: #bfebd4;
+  box-shadow: 0 0 0 3px rgba(191, 235, 212, 0.25);
+}
+
+.signature-font {
+  font-family: 'Cairo', sans-serif;
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+.fade-in {
+  animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Seamless Infinite Marquee CSS Animation */
+@keyframes marquee-seamless-left {
+  0% { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(-50%, 0, 0); }
+}
+
+@keyframes marquee-seamless-right {
+  0% { transform: translate3d(-50%, 0, 0); }
+  100% { transform: translate3d(0, 0, 0); }
+}
+
+.animate-marquee-left {
+  display: flex;
+  width: max-content;
+  animation: marquee-seamless-left 55s linear infinite;
+}
+
+.animate-marquee-right {
+  display: flex;
+  width: max-content;
+  animation: marquee-seamless-right 55s linear infinite;
+}

@@ -1,0 +1,657 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { collection, doc, addDoc, updateDoc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { db, appId } from '../firebase';
+import { Users, CornerUpLeft, Trash2, X, Smile } from 'lucide-react';
+import VerifiedBadge from './VerifiedBadge';
+
+export default function UnifiedChatView({ profile, groupMessages, privateMessages, friendships, studentDirectory, onViewProfile }) {
+  const [activeTab, setActiveTab] = useState('group'); // 'group' or 'private'
+  const [selectedFriend, setSelectedFriend] = useState(null); // active private chat friend profile
+  const [newMessage, setNewMessage] = useState('');
+  const [replyTarget, setReplyTarget] = useState(null); // Quote/Reply target message
+  const [typingUsers, setTypingUsers] = useState([]);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const messagesEndRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
+
+  const EMOJI_CATEGORIES = [
+    {
+      name: 'المشاعِر 😊',
+      emojis: ['😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '😎', '🥳', '😏', '😒', '😞', '😔', '😟', '😕', '🙁', '☹️', '😢', '😭', '😤', '😠', '😡', '🤬', '🤯', '😳', '🥵', '🥶', '😱', '🤫', '🫡', '🫣', '🤭', '🫢', '🫠', '🤔', '😴', '😷', '👿', '😈']
+    },
+    {
+      name: 'التفاعُلات 👍',
+      emojis: ['👍', '👎', '👊', '✊', '🤛', '🤜', '🤞', '✌️', '🤟', '🤘', '👌', '🤌', '🤏', '👈', '👉', '👆', '👇', '✋', '🤚', '👋', '🤙', '💪', '🦾', '🙏', '🤝', '👏', '🙌', '👐', '🤲', '👂', '👃', '🧠', '👀']
+    },
+    {
+      name: 'الدِراسة 🎓',
+      emojis: ['🎓', '📚', '📖', '🏫', '✏️', '📝', '🗒️', '📐', '📏', '📊', '📈', '📉', '💼', '🎒', '🧠', '💡', '🔔', '💻', '🖥️', '⌨️', '🔋', '🔌', '📅', '📆', '🗓️', '🏆', '🥇', '🥈', '🥉', '🎖️', '🏅']
+    },
+    {
+      name: 'مُنوّعات ❤️',
+      emojis: ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '🔥', '✨', '🌟', '⭐', '🌈', '⚡', '💥', '🎉', '🎊', '🎈', '🎀', '🎁', '🎂', '☕', '🥛', '🥤', '🍕', '🍔', '🍟', '🍎', '🍓']
+    }
+  ];
+  const [selectedEmojiCategoryIdx, setSelectedEmojiCategoryIdx] = useState(0);
+  const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [groupMessages, privateMessages, selectedFriend, activeTab]);
+
+  // Unique channel key for private chats (sorting IDs in JS)
+  const getPrivateChatKey = (uid1, uid2) => {
+    return [uid1, uid2].sort().join('_');
+  };
+
+  const cohortSafe = profile.cohort.replace(/\s+/g, '_');
+  const channelId = activeTab === 'group'
+    ? `group_${cohortSafe}`
+    : (selectedFriend ? `private_${getPrivateChatKey(profile.uid, selectedFriend.uid)}` : null);
+
+  // typing status listener
+  useEffect(() => {
+    if (!channelId) return;
+    const typingDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'typing', channelId);
+
+    const unsub = onSnapshot(typingDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        const activeTypers = [];
+
+        Object.keys(data).forEach(uid => {
+          if (uid !== profile.uid && data[uid]) {
+            // Check if status is fresh (less than 4 seconds) to avoid stale typing displays
+            if (Date.now() - data[uid].timestamp < 4000) {
+              activeTypers.push(data[uid].name);
+            }
+          }
+        });
+
+        setTypingUsers(activeTypers);
+      } else {
+        setTypingUsers([]);
+      }
+    });
+
+    return () => unsub();
+  }, [channelId]);
+
+  // Mark private messages as read
+  useEffect(() => {
+    if (activeTab !== 'private' || !selectedFriend || !privateMessages.length) return;
+
+    const chatKey = getPrivateChatKey(profile.uid, selectedFriend.uid);
+    const unreadMsgs = privateMessages.filter(m => m.chatKey === chatKey && m.senderId === selectedFriend.uid && !m.read);
+
+    if (unreadMsgs.length === 0) return;
+
+    unreadMsgs.forEach(async (msg) => {
+      try {
+        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'private_chats', msg.id);
+        await updateDoc(docRef, { read: true });
+      } catch (err) {
+        console.error("Error marking message as read:", err);
+      }
+    });
+  }, [selectedFriend, activeTab, privateMessages]);
+
+  const updateTypingStatus = async (isTyping) => {
+    if (!channelId) return;
+    const typingDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'typing', channelId);
+    try {
+      await setDoc(typingDocRef, {
+        [profile.uid]: isTyping ? { name: profile.name, timestamp: Date.now() } : null
+      }, { merge: true });
+    } catch (e) {
+      console.error("Typing update error:", e);
+    }
+  };
+
+  const handleInputChange = (e) => {
+    setNewMessage(e.target.value);
+
+    // Trigger typing online status
+    updateTypingStatus(true);
+
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+
+    typingTimeoutRef.current = setTimeout(() => {
+      updateTypingStatus(false);
+    }, 2000);
+  };
+
+  // Retrieve friends (accepted friendships)
+  const acceptedFriends = friendships
+    .filter(f => f.status === 'accepted' && (f.senderUid === profile.uid || f.receiverUid === profile.uid))
+    .map(f => {
+      const friendUid = f.senderUid === profile.uid ? f.receiverUid : f.senderUid;
+      return studentDirectory.find(s => s.uid === friendUid) || { uid: friendUid, name: 'طالب في معهد طيبة', studentId: 'TBA' };
+    });
+
+  const getFriendAvatar = (student) => {
+    if (student.avatarUrl) return student.avatarUrl;
+    return student.gender === 'أنثى'
+      ? 'https://api.dicebear.com/7.x/avataaars/svg?seed=Tiera'
+      : 'https://api.dicebear.com/7.x/avataaars/svg?seed=Christian';
+  };
+
+  const getUnreadCountForFriend = (friendUid) => {
+    const chatKey = getPrivateChatKey(profile.uid, friendUid);
+    return privateMessages.filter(m => m.chatKey === chatKey && m.senderId === friendUid && !m.read).length;
+  };
+
+  const getFormattedDateHeader = (timestamp) => {
+    if (!timestamp) return '';
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+
+    if (date.toDateString() === today.toDateString()) {
+      return 'اليوم';
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      return 'أمس';
+    } else {
+      return date.toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    }
+  };
+
+  const getFormattedTime = (timestamp) => {
+    if (!timestamp) return '';
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    return date.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true });
+  };
+
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if (!newMessage.trim()) return;
+
+    // College Profanity Filter & Auto-Moderation (رقابة الكلية التلقائية للذوق العام)
+    const badWords = [
+      'غبي', 'حمار', 'كلب', 'حيوان', 'كافر', 'معرص', 'خول', 'متخلف', 'وسخ', 'وسخه',
+      'زبالة', 'زباله', 'تافه', 'قذر', 'شرموط', 'شرموطه', 'قحبة', 'قحبه', 'كسك', 
+      'بضان', 'احا', 'أحا', 'عرص', 'شاذ', 'منيوك', 'نيك', 'ينيك', 'طيز', 'طيزك', 
+      'لبوة', 'لبوه', 'نجس', 'ابن الكلب', 'ابن كلب'
+    ];
+    let censoredText = newMessage;
+    badWords.forEach(word => {
+      const regex = new RegExp(`(ال|يا|ب|ف|ك|و)?${word}`, 'gi');
+      censoredText = censoredText.replace(regex, '***');
+    });
+
+    // Clear typing indicator immediately
+    updateTypingStatus(false);
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+
+    try {
+      if (activeTab === 'group') {
+        const chatRef = collection(db, 'artifacts', appId, 'public', 'data', `chat_${cohortSafe}`);
+        await addDoc(chatRef, {
+          text: censoredText,
+          senderId: profile.uid,
+          senderName: profile.name,
+          deleted: false,
+          replyTo: replyTarget ? { text: replyTarget.text, senderName: replyTarget.senderName } : null,
+          timestamp: serverTimestamp(),
+          reactions: {}
+        });
+      } else {
+        if (!selectedFriend) return;
+        const chatKey = getPrivateChatKey(profile.uid, selectedFriend.uid);
+        const chatRef = collection(db, 'artifacts', appId, 'public', 'data', 'private_chats');
+        await addDoc(chatRef, {
+          chatKey,
+          text: censoredText,
+          senderId: profile.uid,
+          senderName: profile.name,
+          deleted: false,
+          replyTo: replyTarget ? { text: replyTarget.text, senderName: replyTarget.senderName } : null,
+          timestamp: serverTimestamp(),
+          reactions: {},
+          read: false
+        });
+      }
+      setNewMessage('');
+      setReplyTarget(null);
+      setShowEmojiPicker(false);
+    } catch (err) {
+      console.error("Error sending message", err);
+    }
+  };
+
+  const deleteMessage = async (msgId, isPrivate) => {
+    try {
+      const collectionName = isPrivate ? 'private_chats' : `chat_${cohortSafe}`;
+      const docRef = doc(db, 'artifacts', appId, 'public', 'data', collectionName, msgId);
+      await updateDoc(docRef, {
+        deleted: true,
+        text: 'تمت إزالة هذه الرسالة بواسطة ' + profile.name
+      });
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleToggleReaction = async (msg, emoji) => {
+    if (msg.deleted) return;
+    try {
+      const collectionName = activeTab === 'private' ? 'private_chats' : `chat_${cohortSafe}`;
+      const docRef = doc(db, 'artifacts', appId, 'public', 'data', collectionName, msg.id);
+
+      const reactions = msg.reactions || {};
+      const currentUids = reactions[emoji] || [];
+
+      let updatedUids = [];
+      if (currentUids.includes(profile.uid)) {
+        // Remove reaction
+        updatedUids = currentUids.filter(uid => uid !== profile.uid);
+      } else {
+        // Add reaction
+        updatedUids = [...currentUids, profile.uid];
+      }
+
+      await updateDoc(docRef, {
+        [`reactions.${emoji}`]: updatedUids
+      });
+    } catch (err) {
+      console.error("Failed toggle reaction:", err);
+    }
+  };
+
+  // Filter messages for current private chat
+  const currentPrivateMessages = selectedFriend
+    ? privateMessages.filter(m => m.chatKey === getPrivateChatKey(profile.uid, selectedFriend.uid))
+    : [];
+
+  const activeMessages = activeTab === 'group' ? groupMessages : currentPrivateMessages;
+
+  return (
+    <div className="flex flex-col md:flex-row h-[calc(100vh-170px)] glass-premium rounded-3xl overflow-hidden fade-in border-2 border-[#82af96] dark:border-[#3c6550]">
+
+      {/* Sidebar for choosing Group vs Private Friend */}
+      <div className="w-full md:w-80 border-l-2 border-[#82af96] dark:border-[#3c6550] bg-white/40 dark:bg-[#09171a]/40 flex flex-col shrink-0 text-right">
+
+        {/* Toggle General vs Private */}
+        <div className="p-4 grid grid-cols-2 gap-2 border-b-2 border-[#82af96] dark:border-[#3c6550]">
+          <button
+            onClick={() => { setActiveTab('group'); setSelectedFriend(null); }}
+            className={`py-2 px-3 rounded-xl font-black text-xs transition ${activeTab === 'group' ? 'bg-[#0e5e6f] text-white' : 'bg-[#bfebd4]/30 text-[#0e5e6f]'}`}
+          >
+            الشات العام الدفعة
+          </button>
+          <button
+            onClick={() => setActiveTab('private')}
+            className={`py-2 px-3 rounded-xl font-black text-xs transition ${activeTab === 'private' ? 'bg-[#0e5e6f] text-white' : 'bg-[#bfebd4]/30 text-[#0e5e6f]'}`}
+          >
+            المحادثات الخاصة
+          </button>
+        </div>
+
+        {/* Directory List based on Selection */}
+        <div className="flex-1 overflow-y-auto p-3 space-y-2">
+          {activeTab === 'group' ? (
+            <div className="p-4 bg-[#bfebd4]/20 border border-[#82af96] rounded-xl">
+              <h4 className="font-black text-sm text-[#0e5e6f] dark:text-[#bfebd4] mb-1">📢 شات دفعة {profile.cohort}</h4>
+              <p className="text-xs text-slate-800 dark:text-slate-300 leading-relaxed font-semibold">
+                شات عام تفاعلي يضم جميع طلاب الدفعة. (للحفاظ على الخصوصية، يتم حذف جميع الرسائل نهائياً بعد مرور 3 أيام).
+              </p>
+            </div>
+          ) : (
+            <>
+              <h4 className="font-black text-xs text-[#0e5e6f] dark:text-[#bfebd4] mb-3 px-1">الزملاء النشطون ({acceptedFriends.length})</h4>
+              {acceptedFriends.length === 0 ? (
+                <p className="text-xs text-slate-500 font-bold p-3 text-center">لا يوجد زملاء مضافون، ابحث عن زميل بالـ ID في دليل الأصدقاء.</p>
+              ) : (
+                acceptedFriends.map(friend => {
+                  const friendUnreadCount = getUnreadCountForFriend(friend.uid);
+                  return (
+                    <button
+                      key={friend.uid}
+                      onClick={() => setSelectedFriend(friend)}
+                      className={`w-full p-3.5 rounded-xl flex items-center gap-3 transition text-right
+                        ${selectedFriend?.uid === friend.uid
+                          ? 'bg-[#bfebd4]/40 border-2 border-[#0e5e6f]'
+                          : 'bg-white dark:bg-[#0d2328] border border-slate-300 dark:border-slate-800 hover:bg-[#bfebd4]/20'}
+                      `}
+                    >
+                      <div className="relative shrink-0">
+                        <div className="w-9 h-9 rounded-full bg-slate-200 border border-slate-300">
+                          <img src={getFriendAvatar(friend)} alt="avatar" className="w-full h-full rounded-full object-cover" />
+                        </div>
+                        <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-[#0d2328] ${friend.status === 'online' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1">
+                          <h5 className="font-black text-xs text-slate-900 dark:text-slate-100 truncate">{friend.name}</h5>
+                          <VerifiedBadge />
+                        </div>
+                        <p className="text-[10px] text-slate-500 truncate font-bold">ID: {friend.studentId} • {friend.status === 'online' ? 'متصل' : 'أوفلاين'}</p>
+                      </div>
+                      {friendUnreadCount > 0 && (
+                        <span className="bg-rose-600 text-white font-black text-[10px] w-5 h-5 rounded-full flex items-center justify-center animate-bounce shrink-0 shadow-md">
+                          {friendUnreadCount}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Main Messaging Panel */}
+      <div className="flex-1 flex flex-col h-full overflow-hidden bg-white/10 dark:bg-slate-950/10">
+
+        {/* Chat Title bar */}
+        <div className="p-4 border-b-2 border-[#82af96] dark:border-[#3c6550] bg-white/50 dark:bg-[#09171a]/50 flex items-center justify-between text-right z-10 shadow-sm">
+          <div className="flex items-center gap-3">
+            {activeTab === 'private' && selectedFriend && (
+              <div className="relative shrink-0 ml-1">
+                <div
+                  className="w-11 h-11 rounded-full bg-slate-200 shrink-0 cursor-pointer p-0.5 border-2 border-[#82af96] shadow-sm hover:scale-105 transition"
+                  onClick={() => onViewProfile && onViewProfile(selectedFriend)}
+                >
+                  <img
+                    src={getFriendAvatar(selectedFriend)}
+                    alt="Friend Avatar"
+                    className="w-full h-full rounded-full object-cover"
+                  />
+                </div>
+                <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white dark:border-[#09171a] ${selectedFriend.status === 'online' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></span>
+              </div>
+            )}
+
+            <div>
+              <div className="flex items-center gap-1.5">
+                <h3
+                  onClick={() => activeTab === 'private' && selectedFriend && onViewProfile && onViewProfile(selectedFriend)}
+                  className={`font-black text-base text-[#0e5e6f] dark:text-[#bfebd4] flex items-center gap-1.5 ${activeTab === 'private' && selectedFriend ? 'cursor-pointer hover:underline' : ''}`}
+                >
+                  {activeTab === 'group' ? `غرفة نقاش الدفعة: ${profile.cohort}` : (selectedFriend ? selectedFriend.name : 'اختر زميلاً لبدء محادثة مشفرة')}
+                  {activeTab === 'private' && selectedFriend && <VerifiedBadge />}
+                </h3>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {activeTab === 'group'
+                  ? (typingUsers.length > 0
+                    ? `✍️ ${typingUsers.join(' و ')} يكتبون الآن...`
+                    : 'شات جماعي للدفعة. (يتم حذف جميع الرسائل تلقائياً كل 3 أيام)')
+                  : (selectedFriend
+                    ? (typingUsers.includes(selectedFriend.name)
+                      ? '✍️ يكتب الآن...'
+                      : `معرّف الطالب: ${selectedFriend.studentId} • ${selectedFriend.status === 'online' ? 'متصل الآن 🟢' : 'غير متصل ⚪'}`)
+                    : 'اضغط على الصديق لفتح شات خاص مغلق')
+                }
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Messages Body */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {activeTab === 'private' && !selectedFriend ? (
+            <div className="h-full flex flex-col items-center justify-center text-slate-500 text-center font-bold p-6">
+              <Users size={48} className="text-[#0e5e6f] mb-2" />
+              <p className="text-sm">الرجاء اختيار زميل من قائمة الأصدقاء على اليمين لبدء المحادثة الفورية الخاصة.</p>
+            </div>
+          ) : activeMessages.length === 0 ? (
+            <div className="h-full flex items-center justify-center text-slate-500 font-bold text-xs">
+              لا توجد رسائل سابقة. بادر بفتح حوار راقٍ ومفيد!
+            </div>
+          ) : (
+            activeMessages.map((msg, index) => {
+              const isMe = msg.senderId === profile.uid;
+              const senderObj = studentDirectory.find(s => s.uid === msg.senderId) || {};
+              const reactions = msg.reactions || {};
+
+              // Check if we need to show date header
+              const showDateHeader = index === 0 || (() => {
+                const prevMsg = activeMessages[index - 1];
+                if (!prevMsg || !prevMsg.timestamp || !msg.timestamp) return false;
+                const prevDate = prevMsg.timestamp.toDate ? prevMsg.timestamp.toDate() : new Date(prevMsg.timestamp);
+                const currDate = msg.timestamp.toDate ? msg.timestamp.toDate() : new Date(msg.timestamp);
+                return prevDate.toDateString() !== currDate.toDateString();
+              })();
+
+              return (
+                <React.Fragment key={msg.id}>
+                  {showDateHeader && msg.timestamp && (
+                    <div className="flex justify-center my-4 fade-in">
+                      <span className="px-4 py-1 rounded-full text-[10px] font-black bg-[#bfebd4]/40 text-[#0e5e6f] dark:bg-[#112d26] dark:text-[#bfebd4] shadow-sm border border-[#82af96]/30">
+                        {getFormattedDateHeader(msg.timestamp)}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className={`flex gap-2.5 ${isMe ? 'flex-row-reverse' : 'flex-row'} items-start fade-in`}>
+
+                    {/* Clickable Avatar URL */}
+                    {!msg.deleted && (
+                      <div
+                        className="w-8 h-8 rounded-full bg-slate-200 shrink-0 cursor-pointer p-0.5 border hover:scale-105 transition"
+                        onClick={() => onViewProfile && onViewProfile({ ...senderObj, name: msg.senderName, uid: msg.senderId })}
+                      >
+                        <img
+                          src={getFriendAvatar({ ...senderObj, name: msg.senderName, gender: senderObj.gender })}
+                          alt="Sender Avatar"
+                          className="w-full h-full rounded-full object-cover"
+                        />
+                      </div>
+                    )}
+
+                    <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[70%] relative`}>
+
+                      {/* Sender Name */}
+                      {!isMe && !msg.deleted && (
+                        <span className="text-[10px] font-black text-slate-700 dark:text-slate-400 mr-1 mb-1 flex items-center gap-1">
+                          {msg.senderName}
+                          <VerifiedBadge />
+                        </span>
+                      )}
+
+                      {/* Quoted Message Preview */}
+                      {msg.replyTo && !msg.deleted && (
+                        <div className="bg-[#bfebd4]/30 dark:bg-[#1a3830]/30 border-r-4 border-[#0e5e6f] px-3 py-1.5 rounded-lg text-xs mb-1 max-w-full opacity-85">
+                          <span className="block font-black text-[10px] text-[#0e5e6f] dark:text-[#bfebd4] mb-0.5">رد على {msg.replyTo.senderName}:</span>
+                          <p className="truncate text-slate-800 dark:text-slate-200">{msg.replyTo.text}</p>
+                        </div>
+                      )}
+
+                      <div className={`relative group px-4 py-3 rounded-2xl text-right leading-relaxed shadow-sm border-2
+                        ${msg.deleted
+                          ? 'bg-slate-100/40 dark:bg-slate-900/40 text-slate-500 italic border-dashed border-slate-300 dark:border-slate-800'
+                          : isMe
+                            ? 'bg-gradient-to-br from-[#0e5e6f] to-[#178a9e] text-white border-[#0e5e6f] rounded-tr-none'
+                            : 'bg-white dark:bg-[#0d2328] text-slate-900 dark:text-slate-100 border-slate-300 dark:border-slate-800 rounded-tl-none'}
+                      `}>
+
+                        {/* Message Text with WhatsApp-style bottom layout for Time & Seen status */}
+                        <div className="flex flex-col">
+                          <p className="text-sm font-semibold leading-relaxed break-words">{msg.text}</p>
+                          {!msg.deleted && msg.timestamp && (
+                            <div className={`flex items-center justify-end gap-1.5 mt-1 select-none ${isMe ? 'text-white/70' : 'text-slate-400 dark:text-slate-500'}`}>
+                              <span className="text-[9px] font-extrabold leading-none">
+                                {getFormattedTime(msg.timestamp)}
+                              </span>
+                              {activeTab === 'private' && isMe && (
+                                <span className="flex items-center leading-none">
+                                  {msg.read ? (
+                                    <span className="text-sky-300 font-extrabold text-[10px] leading-none drop-shadow" title="مقروءة">✓✓</span>
+                                  ) : (selectedFriend?.status === 'online' ? (
+                                    <span className="text-slate-100 font-extrabold text-[10px] leading-none" title="مستلمة">✓✓</span>
+                                  ) : (
+                                    <span className="text-white/40 font-extrabold text-[10px] leading-none" title="مرسلة">✓</span>
+                                  ))}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Reactions display at bottom of bubble */}
+                        {Object.keys(reactions).some(e => reactions[e]?.length > 0) && (
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {Object.keys(reactions).map(emoji => {
+                              const count = reactions[emoji]?.length || 0;
+                              if (count === 0) return null;
+                              const hasReacted = reactions[emoji]?.includes(profile.uid);
+                              return (
+                                <button
+                                  key={emoji}
+                                  onClick={() => handleToggleReaction(msg, emoji)}
+                                  className={`px-2 py-0.5 rounded-full text-xs font-black border flex items-center gap-1 transition ${hasReacted ? 'bg-[#bfebd4] text-[#0e5e6f] border-[#0e5e6f]' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}
+                                >
+                                  <span>{emoji}</span>
+                                  <span>{count}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* WhatsApp Hover / Touch Reaction Bar & options */}
+                        {!msg.deleted && (
+                          <div className="absolute top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-1 px-2.5 py-1 bg-white dark:bg-slate-900 rounded-full shadow-lg border-2 border-[#82af96] dark:border-[#3c6550] z-20 left-[-80px] md:left-auto md:right-[-90px] flex-row">
+
+                            {/* Emoji quick reaction dots */}
+                            <div className="flex gap-1 border-l pl-1.5 border-slate-200 dark:border-slate-800">
+                              {REACTION_EMOJIS.map(emoji => (
+                                <button
+                                  key={emoji}
+                                  onClick={() => handleToggleReaction(msg, emoji)}
+                                  className="text-sm hover:scale-130 transition active:scale-95"
+                                >
+                                  {emoji}
+                                </button>
+                              ))}
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => setReplyTarget(msg)}
+                              title="رد واقتباس"
+                              className="p-1 text-[#0e5e6f] dark:text-[#bfebd4] hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
+                            >
+                              <CornerUpLeft size={13} />
+                            </button>
+                            {(isMe || (activeTab === 'group' && profile.role === 'admin')) && (
+                              <button
+                                type="button"
+                                onClick={() => deleteMessage(msg.id, activeTab === 'private')}
+                                title={profile.role === 'admin' && !isMe ? "حذف كمسؤول" : "حذف للجميع"}
+                                className="p-1 text-rose-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </React.Fragment>
+              );
+            })
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Typing status display */}
+        {typingUsers.length > 0 && (
+          <div className="px-4 py-1 text-[10px] italic font-black text-emerald-600 dark:text-emerald-400 bg-white/30 dark:bg-black/10 text-right animate-pulse">
+            ✍️ {typingUsers.join(' و ')} {typingUsers.length > 1 ? 'يكتبون الآن...' : 'يكتب الآن...'}
+          </div>
+        )}
+
+        {/* Bottom Quoted Reply Banner */}
+        {replyTarget && (
+          <div className="px-4 py-2 bg-[#bfebd4]/40 dark:bg-[#1a3830]/40 flex items-center justify-between border-t border-[#82af96] dark:border-[#3c6550] text-right">
+            <div className="text-xs">
+              <span className="block font-black text-[#0e5e6f] dark:text-[#bfebd4]">رد على رسالة {replyTarget.senderName}:</span>
+              <p className="text-slate-700 dark:text-slate-300 truncate max-w-lg">{replyTarget.text}</p>
+            </div>
+            <button type="button" onClick={() => setReplyTarget(null)} className="p-1 rounded-full hover:bg-slate-200">
+              <X size={16} />
+            </button>
+          </div>
+        )}
+
+        {/* Send Form & Custom Emoji selector panel */}
+        {(activeTab !== 'private' || selectedFriend) && (
+          <div className="p-4 bg-white/60 dark:bg-[#09171a]/60 border-t border-[#82af96] dark:border-[#3c6550] backdrop-blur-md relative">
+
+            {/* Quick Emoji bar */}
+            {showEmojiPicker && (
+              <div className="absolute bottom-16 right-4 w-76 p-3 bg-white dark:bg-[#0d2328] rounded-2xl border-2 border-[#82af96] dark:border-[#3c6550] shadow-2xl z-30 fade-in text-right">
+                {/* Horizontal Category Selectors */}
+                <div className="flex gap-1 border-b border-slate-200 dark:border-slate-800 pb-2 mb-2 overflow-x-auto select-none no-scrollbar">
+                  {EMOJI_CATEGORIES.map((cat, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setSelectedEmojiCategoryIdx(idx)}
+                      className={`px-2 py-1 rounded-lg text-[10px] font-black transition shrink-0 ${selectedEmojiCategoryIdx === idx ? 'bg-[#0e5e6f] text-white' : 'bg-slate-100 dark:bg-slate-900 text-slate-650 dark:text-slate-400 hover:bg-slate-200'}`}
+                    >
+                      {cat.name}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Emojis Grid Panel */}
+                <div className="grid grid-cols-7 gap-2 max-h-44 overflow-y-auto p-0.5 justify-items-center">
+                  {EMOJI_CATEGORIES[selectedEmojiCategoryIdx].emojis.map((emoji, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        setNewMessage(prev => prev + emoji);
+                      }}
+                      className="text-xl hover:scale-130 transition duration-100 flex items-center justify-center w-8 h-8 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-900"
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <form onSubmit={handleSendMessage} className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                className="w-12 h-12 rounded-full border border-slate-300 dark:border-slate-800 bg-white/95 dark:bg-[#0d2328] flex items-center justify-center hover:scale-105 transition shrink-0 text-[#0e5e6f] dark:text-[#bfebd4] shadow-sm"
+              >
+                <Smile size={20} />
+              </button>
+
+              <input
+                type="text"
+                value={newMessage}
+                onChange={handleInputChange}
+                placeholder="اكتب رسالتك الجامعية هنا..."
+                className="flex-1 input-academic font-black border-2 rounded-full px-5 py-3 focus:outline-none focus:ring-2 focus:ring-[#0e5e6f] text-xs md:text-sm"
+              />
+
+              <button
+                type="submit"
+                disabled={!newMessage.trim()}
+                className="w-12 h-12 rounded-full bg-[#0e5e6f] hover:bg-[#178a9e] text-white flex items-center justify-center hover:scale-105 transition disabled:opacity-50 shrink-0 shadow-md"
+              >
+                <svg className="w-5 h-5 transform rotate-180 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                </svg>
+              </button>
+            </form>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
