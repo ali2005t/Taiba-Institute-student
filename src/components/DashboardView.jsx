@@ -64,7 +64,7 @@ export default function DashboardView({ profile, materials = [], announcements =
                 <VerifiedBadge />
               </div>
               <p className="text-xs text-slate-800 dark:text-slate-300 font-bold mt-1 leading-relaxed">
-                البوابة الإلكترونية الرسمية للخدمات الطلابية بمعهد طيبة الأكاديمي.
+                المنصة الطلابية التفاعلية لمساعدة طلاب معهد طيبة الأكاديمي (مبادرة مستقلة).
               </p>
             </div>
           </div>
@@ -109,13 +109,13 @@ export default function DashboardView({ profile, materials = [], announcements =
       <div className="glass-premium p-6 rounded-3xl border-2 border-[#82af96]/30">
         <h3 className="text-lg font-black mb-6 flex items-center gap-2 border-b-2 border-[#82af96]/30 pb-3 text-[#0e5e6f] dark:text-[#bfebd4]">
           <Clock size={20} className="text-[#0e5e6f] dark:text-[#bfebd4]" />
-          تنبيهات الفرقة والدفعة الدراسية الرسمية
+          تنبيهات الفرقة والدفعة الدراسية
         </h3>
         <div className="space-y-4">
           {announcements.length === 0 ? (
             <div className="p-6 bg-slate-50/50 dark:bg-slate-900/30 rounded-2xl text-center border border-slate-200/50 dark:border-slate-800/50">
-              <p className="font-extrabold text-sm text-slate-800 dark:text-slate-300">📢 لا توجد تنبيهات رسمية جديدة حالياً لفرقتك الدراسية.</p>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-bold mt-1">سيقوم الكادر الخاص بالمنصة بإرسال التنبيهات المهمة إليك هنا فور صدورها.</p>
+              <p className="font-extrabold text-sm text-slate-800 dark:text-slate-300">📢 لا توجد تنبيهات جديدة حالياً لفرقتك الدراسية.</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-bold mt-1">سيقوم الكادر الطلابي للمنصة بإرسال التنبيهات المهمة إليك هنا فور صدورها.</p>
             </div>
           ) : (
             announcements.map((item) => (
@@ -126,7 +126,7 @@ export default function DashboardView({ profile, materials = [], announcements =
                   <div className="flex-1">
                     <h4 className="font-extrabold text-sm text-slate-900 dark:text-[#f0f7f4] leading-relaxed">{item.msg}</h4>
                     <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 font-bold">
-                      بواسطة {item.addedBy || 'إدارة معهد طيبة'} • {item.createdAt ? new Date(item.createdAt.seconds * 1000).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' }) : 'الآن'}
+                      بواسطة {item.addedBy || 'فريق المنصة'} • {item.createdAt ? new Date(item.createdAt.seconds * 1000).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' }) : 'الآن'}
                     </p>
                   </div>
                </div>

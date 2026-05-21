@@ -527,8 +527,8 @@ export default function UnifiedChatView({ profile, groupMessages, privateMessage
                         ${msg.deleted
                           ? 'bg-slate-100/40 dark:bg-slate-900/40 text-slate-500 italic border-dashed border-slate-300 dark:border-slate-800'
                           : isMe
-                            ? 'bg-gradient-to-br from-[#0e5e6f] to-[#178a9e] text-white border-[#0e5e6f] rounded-tr-none'
-                            : 'bg-white dark:bg-[#0d2328] text-slate-900 dark:text-slate-100 border-slate-300 dark:border-slate-800 rounded-tl-none'}
+                            ? 'bg-gradient-to-br from-[#0e5e6f] to-[#178a9e] text-white border-[#0e5e6f] rounded-tl-none'
+                            : 'bg-white dark:bg-[#0d2328] text-slate-900 dark:text-slate-100 border-slate-300 dark:border-slate-800 rounded-tr-none'}
                       `}>
 
                         {/* Message Text with WhatsApp-style bottom layout for Time & Seen status */}
@@ -577,9 +577,9 @@ export default function UnifiedChatView({ profile, groupMessages, privateMessage
 
                         {/* Desktop Hover & Mobile Long-Press Reaction Bar */}
                         {!msg.deleted && (
-                          <div className={`absolute top-1/2 -translate-y-1/2 items-center gap-1 px-2.5 py-1 bg-white dark:bg-slate-900 rounded-full shadow-lg border-2 border-[#82af96] dark:border-[#3c6550] z-20 flex-row
+                          <div className={`absolute -top-12 z-30 flex-row items-center gap-1 px-2.5 py-1 bg-white dark:bg-slate-900 rounded-full shadow-lg border-2 border-[#82af96] dark:border-[#3c6550]
                             ${activeReactionMsgId === msg.id ? 'flex' : 'hidden group-hover:hidden md:group-hover:flex'} 
-                            left-[-80px] md:left-auto md:right-[-90px]`}
+                            ${isMe ? 'left-0' : 'right-0'}`}
                           >
 
                             {/* Emoji quick reaction dots */}
