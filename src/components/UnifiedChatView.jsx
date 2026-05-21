@@ -577,9 +577,10 @@ export default function UnifiedChatView({ profile, groupMessages, privateMessage
 
                         {/* Desktop Hover & Mobile Long-Press Reaction Bar */}
                         {!msg.deleted && (
-                          <div className={`absolute -top-12 z-30 flex-row items-center gap-1 px-2.5 py-1 bg-white dark:bg-slate-900 rounded-full shadow-lg border-2 border-[#82af96] dark:border-[#3c6550]
+                          <div className={`absolute -top-10 z-30 flex-row items-center gap-1 px-2.5 py-1 bg-white dark:bg-slate-900 rounded-full shadow-lg border-2 border-[#82af96] dark:border-[#3c6550]
                             ${activeReactionMsgId === msg.id ? 'flex' : 'hidden group-hover:hidden md:group-hover:flex'} 
-                            ${isMe ? 'left-0' : 'right-0'}`}
+                            ${isMe ? 'left-0' : 'right-0'}
+                            after:content-[''] after:absolute after:w-full after:h-6 after:-bottom-6 after:left-0`}
                           >
 
                             {/* Emoji quick reaction dots */}
