@@ -1,27 +1,74 @@
 import React, { useState, useEffect } from 'react';
 import { doc, setDoc, collection, onSnapshot } from 'firebase/firestore';
-import { Clock, FileText, CheckCircle, AlertTriangle, HelpCircle, Send, Edit3 } from 'lucide-react';
+import { Clock, FileText, CheckCircle, AlertTriangle, HelpCircle, Send, Edit3, Calendar, ListChecks } from 'lucide-react';
 
-export default function ExamsView({ exams = [], db, appId, profile }) {
+export default function ExamsView({ exams = [], db, appId, profile, initialTab }) {
+  const [activeTab, setActiveTab] = useState(initialTab || 'bubble_sheet');
   const [activeExam, setActiveExam] = useState(null);
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
   const [answers, setAnswers] = useState({});
   const [timeLeft, setTimeLeft] = useState(0);
   const [result, setResult] = useState(null);
   const [solvedExams, setSolvedExams] = useState({});
+  const [schedules, setSchedules] = useState([]);
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
 
   useEffect(() => {
     if (!profile || !profile.uid || !db || !appId) return;
+    
+    // 1. Listen to Submissions
     const submissionsRef = collection(db, 'artifacts', appId, 'users', profile.uid, 'exam_submissions');
-    const unsub = onSnapshot(submissionsRef, (snapshot) => {
+    const unsubSub = onSnapshot(submissionsRef, (snapshot) => {
       const submissions = {};
       snapshot.docs.forEach(doc => {
         submissions[doc.id] = doc.data();
       });
       setSolvedExams(submissions);
     });
-    return () => unsub();
+
+    // 2. Listen to Schedules
+    const schedulesRef = collection(db, 'artifacts', appId, 'public', 'data', 'exam_schedules');
+    const unsubSched = onSnapshot(schedulesRef, (snapshot) => {
+      const schedList = [];
+      snapshot.docs.forEach(d => {
+        const data = d.data();
+        if (data.visible !== false) {
+          if (data.cohort === 'كل الفرق' || data.cohort === profile.cohort) {
+            if (data.major === 'كل التخصصات' || data.major === profile.major) {
+              schedList.push({ id: d.id, ...data });
+            }
+          }
+        }
+      });
+      setSchedules(schedList.sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis()));
+    });
+
+    return () => {
+      unsubSub();
+      unsubSched();
+    };
   }, [profile, db, appId]);
+
+  const isPastExam = (dateStr) => {
+    if (!dateStr) return false;
+    const match = dateStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (!match) return false;
+    
+    const day = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10) - 1;
+    const year = parseInt(match[3], 10);
+    
+    const examDate = new Date(year, month, day);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    return examDate < today;
+  };
 
   const getExamStatus = (exam) => {
     const now = new Date();
@@ -467,25 +514,88 @@ export default function ExamsView({ exams = [], db, appId, profile }) {
     <div className="space-y-6 fade-in text-right">
       
       {/* View Title Panel */}
-      <div className="glass-premium p-8 rounded-3xl relative overflow-hidden border-2 border-[#82af96]/30">
+      <div className="glass-premium p-8 rounded-3xl relative overflow-hidden border-2 border-[#82af96]/30 mb-6">
         <div className="relative z-10 flex items-center gap-4">
           <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#0e5e6f] to-[#178a9e] flex items-center justify-center text-white shadow-lg shrink-0">
-            <FileText size={24} />
+            {activeTab === 'schedules' ? <Calendar size={24} /> : <FileText size={24} />}
           </div>
           <div>
             <h2 className="text-2xl font-black text-[#0e5e6f] dark:text-[#bfebd4]">
-              البابل شيت ونظام الاختبارات الإلكترونية لمعهد طيبة
+              {activeTab === 'schedules' ? 'جداول الامتحانات الأكاديمية' : 'الاختبارات والبابل شيت'}
             </h2>
             <p className="text-xs text-slate-800 dark:text-slate-300 font-bold mt-1">
-              أدِ اختباراتك الإلكترونية، وقدم ورقة إجابة البابل شيت الرقمية مباشرة للرصد والتقييم الفوري.
+              {activeTab === 'schedules' 
+                ? 'استعرض جداول الميدتيرم والفاينال المعتمدة لفرقتك.' 
+                : 'أدِ اختبارات البابل شيت الإلكترونية التفاعلية لفرقتك.'}
             </p>
           </div>
         </div>
         <div className="absolute top-0 left-0 w-80 h-80 bg-[#0e5e6f] rounded-full mix-blend-multiply filter blur-3xl opacity-10 -translate-x-1/2 -translate-y-1/2"></div>
       </div>
 
-      {/* Available Exams directly displayed (Zero guidelines / static barriers) */}
-      <div className="space-y-4">
+      {activeTab === 'schedules' ? (
+        <div className="space-y-6 fade-in">
+          <h3 className="text-base font-black text-[#0e5e6f] dark:text-[#bfebd4] px-1 flex items-center gap-2 justify-end">
+            جداول الامتحانات المعتمدة لفرقتك وتخصصك
+            <Calendar size={16} />
+          </h3>
+
+          {schedules.length === 0 ? (
+            <div className="p-8 bg-slate-50/50 dark:bg-slate-900/30 rounded-2xl text-center border border-slate-200/50 dark:border-slate-800/50">
+              <p className="font-extrabold text-sm text-slate-800 dark:text-slate-300">📢 لا توجد جداول امتحانات معلنة لفرقتك حالياً.</p>
+              <p className="text-[11px] text-slate-500 font-bold mt-1">سيتم نشر الجداول فور اعتمادها من الإدارة.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-8">
+              {schedules.map(sched => (
+                <div key={sched.id} className="glass-premium overflow-hidden rounded-3xl border-2 border-[#82af96]/30 shadow-md">
+                  <div className="bg-gradient-to-r from-[#0e5e6f] to-[#178a9e] p-5 text-white flex justify-between items-center">
+                    <span className="px-3 py-1 bg-white/20 rounded-full text-[10px] font-black backdrop-blur-sm">
+                      {sched.type === 'midterm' ? 'الميدتيرم' : 'الفاينال'}
+                    </span>
+                    <h3 className="font-black text-lg flex items-center gap-2">
+                      {sched.title}
+                      <Calendar size={20} />
+                    </h3>
+                  </div>
+
+                  <div className="p-6 space-y-4 bg-white/40 dark:bg-slate-900/40">
+                    {sched.notes && (
+                      <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl text-amber-900 dark:text-amber-200 text-right">
+                        <p className="text-[11px] font-black mb-1 flex items-center gap-1.5 justify-end">ملاحظات هامة <AlertTriangle size={14}/></p>
+                        <p className="text-sm font-bold leading-relaxed">{sched.notes}</p>
+                      </div>
+                    )}
+
+                    <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700">
+                      <table className="w-full text-right text-sm">
+                        <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-black">
+                          <tr>
+                            <th className="px-6 py-4">المقرر / المادة</th>
+                            <th className="px-6 py-4 border-r border-slate-200 dark:border-slate-700 w-1/3">التاريخ والوقت</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200 dark:divide-slate-700 font-bold">
+                          {sched.exams && sched.exams.map((item, idx) => {
+                            const isPast = isPastExam(item.date);
+                            return (
+                              <tr key={idx} className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 transition ${isPast ? 'opacity-40' : ''}`}>
+                                <td className={`px-6 py-4 text-slate-800 dark:text-slate-200 ${isPast ? 'line-through decoration-rose-500/50 decoration-2' : ''}`}>{item.subject}</td>
+                                <td className={`px-6 py-4 border-r border-slate-200 dark:border-slate-700 ${isPast ? 'line-through decoration-rose-500/50 decoration-2 text-slate-500 dark:text-slate-500' : 'text-[#0e5e6f] dark:text-[#bfebd4]'}`}>{item.date}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-4 fade-in">
         <h3 className="text-base font-black text-[#0e5e6f] dark:text-[#bfebd4] px-1 flex items-center gap-2 justify-end">
           الاختبارات النشطة المتاحة لفرقتك حالياً
           <Clock size={16} />
@@ -575,6 +685,8 @@ export default function ExamsView({ exams = [], db, appId, profile }) {
           </div>
         )}
       </div>
+
+      )}
 
     </div>
   );

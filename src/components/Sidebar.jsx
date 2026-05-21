@@ -6,11 +6,12 @@ import VerifiedBadge from './VerifiedBadge';
 
 export default function Sidebar({ profile, currentView, setCurrentView, handleLogout, isOpen, setIsOpen, unreadPrivateCount }) {
   const [coursesExpanded, setCoursesExpanded] = useState(true);
+  const [examsExpanded, setExamsExpanded] = useState(true);
 
   const navItems = [
     { id: 'dashboard', label: 'الرئيسية الأكاديمية', icon: GraduationCap },
     { id: 'courses', label: 'المقررات والمراجعات', icon: BookOpen },
-    { id: 'exams', label: 'الاختبارات وبابل شيت', icon: FileCheck },
+    { id: 'exams', label: 'الاختبارات', icon: FileCheck },
     { id: 'chat', label: 'الشات الجامعي', icon: MessageSquare },
     { id: 'friends', label: 'دليل الأصدقاء وحساباتهم', icon: UserCheck },
     { id: 'profile', label: 'الملف الشخصي', icon: User },
@@ -114,6 +115,61 @@ export default function Sidebar({ profile, currentView, setCurrentView, handleLo
                       >
                         <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0"></span>
                         المراجعات النهائية والفاينال
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+            if (item.id === 'exams') {
+              const isExamsActive = ['exams', 'exams_mcq', 'exams_schedules'].includes(currentView);
+              return (
+                <div key={item.id} className="space-y-1.5">
+                  <button
+                    onClick={() => { 
+                      setExamsExpanded(!examsExpanded);
+                    }}
+                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-200 font-black text-sm
+                      ${isExamsActive 
+                        ? 'bg-gradient-to-r from-[#0e5e6f]/10 to-[#178a9e]/10 border-2 border-[#0e5e6f] text-[#0e5e6f] dark:text-[#bfebd4]' 
+                        : 'text-[#0e5e6f] dark:text-[#bfebd4] hover:bg-[#bfebd4]/20 dark:hover:bg-[#bfebd4]/10'}
+                    `}
+                  >
+                    <div className="flex items-center gap-3.5">
+                      <Icon size={18} className="text-[#0e5e6f] dark:text-[#bfebd4]" />
+                      <span>الاختبارات</span>
+                    </div>
+                    <span className={`text-xs transform transition-transform duration-200 ${examsExpanded ? 'rotate-90' : ''}`}>
+                      ◀
+                    </span>
+                  </button>
+
+                  {/* Expanded Submenu */}
+                  {examsExpanded && (
+                    <div className="mr-6 space-y-1 border-r-2 border-[#82af96]/45 dark:border-[#3c6550]/45 pr-2.5 my-1 text-right">
+                      <button
+                        onClick={() => { setCurrentView('exams_mcq'); setIsOpen(false); }}
+                        className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs font-extrabold transition-all duration-200
+                          ${(currentView === 'exams' || currentView === 'exams_mcq')
+                            ? 'bg-gradient-to-r from-[#0e5e6f] to-[#178a9e] text-white shadow-md shadow-[#0e5e6f]/20'
+                            : 'text-[#0e5e6f]/80 dark:text-[#bfebd4]/80 hover:bg-[#bfebd4]/15'}
+                        `}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0"></span>
+                        البابل شيت والاختبارات
+                      </button>
+
+                      <button
+                        onClick={() => { setCurrentView('exams_schedules'); setIsOpen(false); }}
+                        className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs font-extrabold transition-all duration-200
+                          ${currentView === 'exams_schedules'
+                            ? 'bg-gradient-to-r from-[#0e5e6f] to-[#178a9e] text-white shadow-md shadow-[#0e5e6f]/20'
+                            : 'text-[#0e5e6f]/80 dark:text-[#bfebd4]/80 hover:bg-[#bfebd4]/15'}
+                        `}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0"></span>
+                        جدول الامتحانات
                       </button>
                     </div>
                   )}

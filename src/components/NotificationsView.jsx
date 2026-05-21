@@ -1,6 +1,29 @@
 import React from 'react';
 import { Bell, Clock, Calendar, ShieldAlert, UploadCloud } from 'lucide-react';
 
+const renderTextWithLinks = (text) => {
+  if (!text) return text;
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = text.split(urlRegex);
+  return parts.map((part, i) => {
+    if (part.match(urlRegex)) {
+      return (
+        <a 
+          key={i} 
+          href={part} 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="text-blue-500 hover:text-blue-600 underline font-bold px-1" 
+          onClick={(e) => e.stopPropagation()}
+        >
+          {part}
+        </a>
+      );
+    }
+    return part;
+  });
+};
+
 export default function NotificationsView({ announcements = [] }) {
   return (
     <div className="space-y-6 max-w-4xl mx-auto text-right fade-in">
@@ -64,12 +87,9 @@ export default function NotificationsView({ announcements = [] }) {
                       <ShieldAlert size={18} />
                     </div>
                     <div className="space-y-1.5">
-                      <h4 className="font-extrabold text-sm text-slate-900 dark:text-[#f0f7f4] leading-relaxed">
-                        {item.msg}
+                      <h4 className="font-extrabold text-sm text-slate-900 dark:text-[#f0f7f4] leading-relaxed whitespace-pre-wrap">
+                        {renderTextWithLinks(item.msg)}
                       </h4>
-                      <p className="text-[10px] text-slate-500 font-black flex items-center gap-1.5">
-                        ✍️ بواسطة: <strong className="text-[#0e5e6f] dark:text-[#bfebd4]">{item.addedBy || 'إدارة المنصة'}</strong>
-                      </p>
                     </div>
                   </div>
 

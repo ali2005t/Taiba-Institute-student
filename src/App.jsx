@@ -15,6 +15,7 @@ import FriendSystemView from './components/FriendSystemView';
 import ProfileView from './components/ProfileView';
 import AdminView from './components/AdminView';
 import NotificationsView from './components/NotificationsView';
+import NewsView from './components/NewsView';
 
 
 // Icons
@@ -22,31 +23,35 @@ import { Settings, Search, Bell, Sun, Moon, AlertTriangle, Menu } from 'lucide-r
 
 const playNotificationSound = () => {
   try {
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContext) return;
-    const ctx = new AudioContext();
-    
-    const playTone = (freq, time, duration) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq, time);
-      
-      gain.gain.setValueAtTime(0.12, time);
-      gain.gain.exponentialRampToValueAtTime(0.0001, time + duration);
-      
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(time);
-      osc.stop(time + duration);
-    };
-    
-    const now = ctx.currentTime;
-    playTone(987.77, now, 0.12); // B5 (Crisp chime note)
-    playTone(1318.51, now + 0.08, 0.22); // E6 (Warm high fifth note transition)
+    const audio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
+    audio.volume = 0.5;
+    audio.play().catch(e => console.error('Audio play failed:', e));
   } catch (e) {
-    console.error("Audio context playback blocked or disabled:", e);
+    console.error("Audio playback blocked or disabled:", e);
   }
+};
+
+const renderTextWithLinks = (text) => {
+  if (!text) return text;
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = text.split(urlRegex);
+  return parts.map((part, i) => {
+    if (part.match(urlRegex)) {
+      return (
+        <a 
+          key={i} 
+          href={part} 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="text-blue-500 hover:text-blue-600 underline font-bold px-1" 
+          onClick={(e) => e.stopPropagation()}
+        >
+          {part}
+        </a>
+      );
+    }
+    return part;
+  });
 };
 
 function BannedView({ profile, handleLogout }) {
@@ -177,6 +182,21 @@ export default function App() {
   const [showDevWarning, setShowDevWarning] = useState(false);
   const [showReportForm, setShowReportForm] = useState(false);
   const [reportReason, setReportReason] = useState('');
+  const [lastSeenNotifications, setLastSeenNotifications] = useState(parseInt(localStorage.getItem('lastSeenNotifications') || '0'));
+
+  const alerts = announcements.filter(a => a.type !== 'news');
+  const news = announcements.filter(a => a.type === 'news');
+  
+  const unreadAlertsCount = alerts.filter(a => (a.createdAt?.toMillis() || 0) > lastSeenNotifications).length;
+
+  const handleOpenNotifications = () => {
+    setNotiDropdownOpen(!notiDropdownOpen);
+    if (!notiDropdownOpen) {
+      const now = Date.now();
+      localStorage.setItem('lastSeenNotifications', now.toString());
+      setLastSeenNotifications(now);
+    }
+  };
 
   useEffect(() => {
     const isHidden = localStorage.getItem('hide_dev_warning');
@@ -560,11 +580,11 @@ export default function App() {
               <div className="relative">
                 <button 
                   type="button" 
-                  onClick={() => setNotiDropdownOpen(!notiDropdownOpen)}
+                  onClick={handleOpenNotifications}
                   className="p-1.5 md:p-2.5 rounded-full bg-[#bfebd4]/30 hover:bg-[#bfebd4]/50 transition relative"
                 >
                   <Bell size={18} className="text-[#0e5e6f] dark:text-[#bfebd4]" />
-                  {announcements.length > 0 && (
+                  {unreadAlertsCount > 0 && (
                     <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-rose-500 rounded-full animate-bounce"></span>
                   )}
                 </button>
@@ -575,16 +595,16 @@ export default function App() {
                     <div className="absolute left-0 mt-2 w-[280px] md:w-80 glass-premium rounded-2xl p-4 border-2 border-[#82af96] dark:border-[#3c6550] shadow-2xl z-40 text-right">
                       <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2 mb-3">
                         <span className="text-[10px] bg-rose-500 text-white px-2 py-0.5 rounded-full font-black">
-                          {announcements.length} تنبيهات
+                          {unreadAlertsCount > 0 ? `${unreadAlertsCount} جديد` : 'لا جديد'}
                         </span>
                         <h4 className="text-xs font-black text-[#0e5e6f] dark:text-[#bfebd4]">التنبيهات والإشعارات</h4>
                       </div>
                       
                       <div className="space-y-3">
-                        {announcements.slice(0, 3).length === 0 ? (
+                        {alerts.slice(0, 3).length === 0 ? (
                           <p className="text-center text-xs text-slate-500 py-3 font-bold">لا توجد تنبيهات نشطة حالياً.</p>
                         ) : (
-                          announcements.slice(0, 3).map(item => (
+                          alerts.slice(0, 3).map(item => (
                             <div 
                               key={item.id} 
                               onClick={() => {
@@ -594,7 +614,7 @@ export default function App() {
                               className="p-2.5 rounded-xl hover:bg-[#0e5e6f]/5 dark:hover:bg-[#bfebd4]/5 cursor-pointer transition border border-transparent hover:border-slate-200 dark:hover:border-slate-800"
                             >
                               <p className="text-xs font-bold text-slate-900 dark:text-[#f0f7f4] line-clamp-2 leading-relaxed">
-                                {item.msg}
+                                {renderTextWithLinks(item.msg)}
                               </p>
                               <span className="text-[9px] text-slate-400 mt-1 block">
                                 {item.createdAt ? new Date(item.createdAt.seconds * 1000).toLocaleString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : 'الآن'}
@@ -638,7 +658,8 @@ export default function App() {
               <DashboardView 
                 profile={profile} 
                 materials={materials} 
-                announcements={announcements} 
+                alerts={alerts}
+                news={news}
                 studentDirectory={studentDirectory} 
                 setCurrentView={setCurrentView} 
               />
@@ -646,9 +667,13 @@ export default function App() {
             {currentView === 'courses_books' && <CoursesView materials={materials} subView="books" />}
             {currentView === 'courses_midterm' && <CoursesView materials={materials} subView="midterm" />}
             {currentView === 'courses_final' && <CoursesView materials={materials} subView="final" />}
-            {currentView === 'exams' && <ExamsView exams={exams} db={db} appId={appId} profile={profile} />}
+            {currentView === 'exams' && <ExamsView exams={exams} db={db} appId={appId} profile={profile} initialTab="mcq" />}
+            {currentView === 'exams_mcq' && <ExamsView exams={exams} db={db} appId={appId} profile={profile} initialTab="mcq" />}
+            {currentView === 'exams_schedules' && <ExamsView exams={exams} db={db} appId={appId} profile={profile} initialTab="schedules" />}
             {currentView === 'chat' && <UnifiedChatView profile={profile} groupMessages={chatMessages} privateMessages={privateChatMessages} friendships={friendships} studentDirectory={studentDirectory} onViewProfile={setActiveProfileModal} />}
             {currentView === 'friends' && <FriendSystemView profile={profile} studentDirectory={studentDirectory} friendships={friendships} onViewProfile={setActiveProfileModal} />}
+            {currentView === 'news' && <NewsView news={news} />}
+            {currentView === 'notifications' && <NotificationsView announcements={alerts} />}
             {currentView === 'profile' && (
               <ProfileView 
                 profile={profile} 
