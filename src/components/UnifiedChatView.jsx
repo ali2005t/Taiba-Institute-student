@@ -249,20 +249,24 @@ export default function UnifiedChatView({ profile, groupMessages, privateMessage
       const collectionName = activeTab === 'private' ? 'private_chats' : `chat_${cohortSafe}`;
       const docRef = doc(db, 'artifacts', appId, 'public', 'data', collectionName, msg.id);
 
-      const reactions = msg.reactions || {};
-      const currentUids = reactions[emoji] || [];
-
-      let updatedUids = [];
-      if (currentUids.includes(profile.uid)) {
-        // Remove reaction
-        updatedUids = currentUids.filter(uid => uid !== profile.uid);
-      } else {
-        // Add reaction
-        updatedUids = [...currentUids, profile.uid];
+      const currentReactions = msg.reactions || {};
+      let updatedReactions = {};
+      
+      // Remove user from all existing reactions first (Ensures only 1 reaction per user)
+      Object.keys(currentReactions).forEach(key => {
+        updatedReactions[key] = currentReactions[key].filter(uid => uid !== profile.uid);
+      });
+      
+      // Check if the user was already reacting with THIS specific emoji
+      const hadThisEmoji = (currentReactions[emoji] || []).includes(profile.uid);
+      
+      // If they didn't have this emoji, add them to it (if they did, it remains removed = toggle off)
+      if (!hadThisEmoji) {
+        updatedReactions[emoji] = [...(updatedReactions[emoji] || []), profile.uid];
       }
 
       await updateDoc(docRef, {
-        [`reactions.${emoji}`]: updatedUids
+        reactions: updatedReactions
       });
       setActiveReactionMsgId(null); // Close mobile reaction menu if open
     } catch (err) {
