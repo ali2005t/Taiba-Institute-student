@@ -334,13 +334,13 @@ export default function UnifiedChatView({ profile, groupMessages, privateMessage
         <div className="p-3 md:p-4 grid grid-cols-2 gap-2 border-b-2 border-[#82af96] dark:border-[#3c6550] shrink-0">
           <button
             onClick={() => { setActiveTab('group'); setSelectedFriend(null); }}
-            className={`py-2 px-1 sm:px-3 rounded-xl font-black text-[10px] md:text-xs transition ${activeTab === 'group' ? 'bg-[#0e5e6f] text-white' : 'bg-[#bfebd4]/30 text-[#0e5e6f]'}`}
+            className={`py-2 px-1 sm:px-3 rounded-xl font-black text-[10px] md:text-xs transition ${activeTab === 'group' ? 'bg-[#0e5e6f] text-white' : 'bg-[#bfebd4]/30 dark:bg-black/30 text-[#0e5e6f] dark:text-slate-300 hover:bg-[#bfebd4]/50 dark:hover:bg-black/50'}`}
           >
             الشات العام الدفعة
           </button>
           <button
             onClick={() => setActiveTab('private')}
-            className={`py-2 px-1 sm:px-3 rounded-xl font-black text-[10px] md:text-xs transition ${activeTab === 'private' ? 'bg-[#0e5e6f] text-white' : 'bg-[#bfebd4]/30 text-[#0e5e6f]'}`}
+            className={`py-2 px-1 sm:px-3 rounded-xl font-black text-[10px] md:text-xs transition ${activeTab === 'private' ? 'bg-[#0e5e6f] text-white' : 'bg-[#bfebd4]/30 dark:bg-black/30 text-[#0e5e6f] dark:text-slate-300 hover:bg-[#bfebd4]/50 dark:hover:bg-black/50'}`}
           >
             المحادثات الخاصة
           </button>
