@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import  { useState } from 'react';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
 import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db, appId } from '../firebase';
 import { COHORTS, MAJORS } from '../constants';
 import { 
-  GraduationCap, AlertCircle, CheckCircle, Phone, Mail, Lock, EyeOff, Eye, UserPlus, Sun, Moon 
+   AlertCircle, CheckCircle, Phone, Mail, Lock, EyeOff, Eye, UserPlus, Sun, Moon 
 } from 'lucide-react';
 import emailjs from '@emailjs/browser';
 
@@ -13,7 +13,7 @@ const EMAILJS_SERVICE_ID = 'service_sqifvnn'; // Real Service ID provided by use
 const EMAILJS_TEMPLATE_ID = 'template_5jl26k9'; // Real Template ID provided by user
 const EMAILJS_PUBLIC_KEY = '_0XrRu5kIVISVR9_M';   // Real Public Key provided by user
 
-export default function AuthScreen({ user, onProfileComplete, theme, toggleTheme }) {
+export default function AuthScreen({ onProfileComplete, theme, toggleTheme }) {
   const [isLogin, setIsLogin] = useState(true);
   const [formData, setFormData] = useState({
     name: '', phone: '', email: '', password: '', gender: 'ذكر', major: MAJORS[0], cohort: COHORTS[0]

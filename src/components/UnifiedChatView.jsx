@@ -280,13 +280,13 @@ export default function UnifiedChatView({ profile, groupMessages, privateMessage
         <div className="p-4 grid grid-cols-2 gap-2 border-b-2 border-[#82af96] dark:border-[#3c6550]">
           <button
             onClick={() => { setActiveTab('group'); setSelectedFriend(null); }}
-            className={`py-2 px-3 rounded-xl font-black text-xs transition ${activeTab === 'group' ? 'bg-[#0e5e6f] text-white' : 'bg-[#bfebd4]/30 text-[#0e5e6f]'}`}
+            className={`py-2 px-3 rounded-xl font-black text-xs transition ${activeTab === 'group' ? 'bg-[#0e5e6f] text-white' : 'bg-[#bfebd4]/30 text-[#09171a]'}`}
           >
             الشات العام الدفعة
           </button>
           <button
             onClick={() => setActiveTab('private')}
-            className={`py-2 px-3 rounded-xl font-black text-xs transition ${activeTab === 'private' ? 'bg-[#0e5e6f] text-white' : 'bg-[#bfebd4]/30 text-[#0e5e6f]'}`}
+            className={`py-2 px-3 rounded-xl font-black text-xs transition ${activeTab === 'private' ? 'bg-[#0e5e6f] text-white' : 'bg-[#bfebd4]/30 text-[#09171a]'}`}
           >
             المحادثات الخاصة
           </button>

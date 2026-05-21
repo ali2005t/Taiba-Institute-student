@@ -547,7 +547,7 @@ export default function App() {
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 max-sm:flex-col-reverse">
               <div className="hidden md:flex relative items-center bg-white/90 dark:bg-[#09171a]/90 border-2 border-[#82af96] dark:border-[#3c6550] rounded-full px-4 py-1.5 shadow-sm">
                 <Search size={16} className="text-[#0e5e6f] ml-2" />
                 <input 

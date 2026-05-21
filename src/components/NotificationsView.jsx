@@ -1,5 +1,5 @@
-import React from 'react';
-import { Bell, Clock, Calendar, ShieldAlert, UploadCloud } from 'lucide-react';
+
+import { Bell, Clock, Calendar, ShieldAlert } from 'lucide-react';
 
 export default function NotificationsView({ announcements = [] }) {
   return (
@@ -37,7 +37,7 @@ export default function NotificationsView({ announcements = [] }) {
               <p className="text-[11px] text-slate-500 font-bold mt-1">سيتم سرد كافة التعليمات المهمة وجدول الامتحانات والتعديلات الطارئة هنا فور صدورها.</p>
             </div>
           ) : (
-            announcements.map((item, index) => {
+            announcements.map((item) => {
               const formattedDate = item.createdAt 
                 ? new Date(item.createdAt.seconds * 1000).toLocaleString('ar-EG', { 
                     weekday: 'long', 

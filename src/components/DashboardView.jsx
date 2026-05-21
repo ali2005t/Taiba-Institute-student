@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { BookOpen, FileCheck, MessageSquare, Clock, UploadCloud } from 'lucide-react';
 import VerifiedBadge from './VerifiedBadge';
 

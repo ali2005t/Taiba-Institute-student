@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import  { useState } from 'react';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, appId } from '../firebase';
 import { COHORTS, MAJORS } from '../constants';
-import { ShieldCheck, Plus, Check, RefreshCw, AlertCircle, FileText, Bell } from 'lucide-react';
+import { ShieldCheck, Plus, Bell } from 'lucide-react';
 
 export default function AdminView({ profile }) {
   // Course/Material form state
