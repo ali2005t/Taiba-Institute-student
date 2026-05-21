@@ -527,27 +527,27 @@ export default function App() {
         <div className="flex-1 flex flex-col h-full overflow-hidden">
           
           {/* Topbar Header */}
-          <header className="glass-premium m-4 rounded-2xl px-6 py-4 flex justify-between items-center z-20">
-            <div className="flex items-center gap-4">
-              <button type="button" onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden p-2 rounded-xl bg-[#bfebd4]/30 hover:bg-[#bfebd4]/50 transition">
+          <header className="glass-premium m-2 md:m-4 rounded-xl md:rounded-2xl px-3 md:px-6 py-3 md:py-4 flex justify-between items-center z-20">
+            <div className="flex items-center gap-2 md:gap-4 shrink-0">
+              <button type="button" onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden p-1.5 md:p-2 rounded-xl bg-[#bfebd4]/30 hover:bg-[#bfebd4]/50 transition">
                 <Menu size={20} className="text-[#0e5e6f] dark:text-[#bfebd4]" />
               </button>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-black flex items-center justify-center shadow-lg border border-[#0e5e6f]/50 shrink-0 overflow-hidden">
+              <div className="flex items-center gap-1.5 md:gap-3 shrink-0">
+                <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-black flex items-center justify-center shadow-lg border border-[#0e5e6f]/50 shrink-0 overflow-hidden">
                   <img src="/logo.jpg" alt="Platform Logo" className="w-full h-full object-cover scale-110" />
                 </div>
-                <div>
-                  <h1 className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-[#0e5e6f] via-[#178a9e] to-[#2c5e43] dark:from-[#bfebd4] dark:to-[#178a9e]">
+                <div className="min-w-0">
+                  <h1 className="text-lg md:text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-[#0e5e6f] via-[#178a9e] to-[#2c5e43] dark:from-[#bfebd4] dark:to-[#178a9e] truncate">
                     طلاب معهد طيبة
                   </h1>
-                  <p className="text-xs text-[#0e5e6f]/80 dark:text-[#bfebd4]/80 font-semibold flex items-center gap-1">
+                  <p className="text-[9px] md:text-xs text-[#0e5e6f]/80 dark:text-[#bfebd4]/80 font-semibold flex items-center gap-1 truncate">
                     {profile.cohort} - {profile.major}
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 md:gap-3 shrink-0">
               <div className="hidden md:flex relative items-center bg-white/90 dark:bg-[#09171a]/90 border-2 border-[#82af96] dark:border-[#3c6550] rounded-full px-4 py-1.5 shadow-sm">
                 <Search size={16} className="text-[#0e5e6f] ml-2" />
                 <input 
@@ -561,7 +561,7 @@ export default function App() {
                 <button 
                   type="button" 
                   onClick={() => setNotiDropdownOpen(!notiDropdownOpen)}
-                  className="p-2.5 rounded-full bg-[#bfebd4]/30 hover:bg-[#bfebd4]/50 transition relative"
+                  className="p-1.5 md:p-2.5 rounded-full bg-[#bfebd4]/30 hover:bg-[#bfebd4]/50 transition relative"
                 >
                   <Bell size={18} className="text-[#0e5e6f] dark:text-[#bfebd4]" />
                   {announcements.length > 0 && (
@@ -572,7 +572,7 @@ export default function App() {
                 {notiDropdownOpen && (
                   <>
                     <div className="fixed inset-0 z-30" onClick={() => setNotiDropdownOpen(false)}></div>
-                    <div className="absolute left-0 mt-2 w-80 glass-premium rounded-2xl p-4 border-2 border-[#82af96] dark:border-[#3c6550] shadow-2xl z-40 text-right">
+                    <div className="absolute left-0 mt-2 w-[280px] md:w-80 glass-premium rounded-2xl p-4 border-2 border-[#82af96] dark:border-[#3c6550] shadow-2xl z-40 text-right">
                       <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2 mb-3">
                         <span className="text-[10px] bg-rose-500 text-white px-2 py-0.5 rounded-full font-black">
                           {announcements.length} تنبيهات
@@ -618,11 +618,11 @@ export default function App() {
                 )}
               </div>
 
-              <button type="button" onClick={toggleTheme} className="p-2.5 rounded-full bg-[#bfebd4]/30 hover:bg-[#bfebd4]/50 transition">
+              <button type="button" onClick={toggleTheme} className="p-1.5 md:p-2.5 rounded-full bg-[#bfebd4]/30 hover:bg-[#bfebd4]/50 transition">
                 {theme === 'dark' ? <Sun size={18} className="text-[#bfebd4]" /> : <Moon size={18} className="text-[#0e5e6f]" />}
               </button>
 
-              <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#0e5e6f] to-[#bfebd4] p-0.5 cursor-pointer" onClick={() => setCurrentView('profile')}>
+              <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-gradient-to-tr from-[#0e5e6f] to-[#bfebd4] p-0.5 cursor-pointer shrink-0" onClick={() => setCurrentView('profile')}>
                 <img 
                   src={profile.avatarUrl || (profile.gender === 'أنثى' ? 'https://api.dicebear.com/7.x/avataaars/svg?seed=Tiera' : 'https://api.dicebear.com/7.x/avataaars/svg?seed=Christian')} 
                   alt="Avatar" 
@@ -904,8 +904,8 @@ export default function App() {
 
       {/* Developer Warning Welcome Modal */}
       {showDevWarning && (
-        <div className="fixed inset-0 bg-slate-950/85 dark:bg-black/95 z-[9999] flex items-center justify-center p-4 backdrop-blur-lg transition-all duration-500 fade-in select-none">
-          <div className="bg-gradient-to-br from-[#0e5e6f]/25 via-[#0c1f24]/95 to-[#1a3821]/20 border-2 border-yellow-500/40 rounded-[32px] p-8 max-w-xl w-full shadow-[0_0_60px_rgba(234,179,8,0.18)] scale-in text-right relative overflow-hidden">
+        <div className="fixed inset-0 bg-slate-950/85 dark:bg-black/95 z-[9999] flex items-center justify-center p-3 md:p-4 backdrop-blur-lg transition-all duration-500 fade-in select-none">
+          <div className="bg-gradient-to-br from-[#0e5e6f]/25 via-[#0c1f24]/95 to-[#1a3821]/20 border-2 border-yellow-500/40 rounded-[24px] md:rounded-[32px] p-5 md:p-8 max-w-xl w-full max-h-[90vh] overflow-y-auto shadow-[0_0_60px_rgba(234,179,8,0.18)] scale-in text-right relative">
             
             {/* Elegant Background glowing lights */}
             <div className="absolute -top-16 -right-16 w-36 h-36 bg-yellow-500/10 rounded-full blur-3xl pointer-events-none"></div>
