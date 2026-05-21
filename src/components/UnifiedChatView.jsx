@@ -14,6 +14,12 @@ export default function UnifiedChatView({ profile, groupMessages, privateMessage
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
 
+  // Mobile Touch Gestures State
+  const [activeReactionMsgId, setActiveReactionMsgId] = useState(null);
+  const [swipingMsgId, setSwipingMsgId] = useState(null);
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const longPressRef = useRef(null);
+
   const EMOJI_CATEGORIES = [
     {
       name: 'المشاعِر 😊',
@@ -258,9 +264,57 @@ export default function UnifiedChatView({ profile, groupMessages, privateMessage
       await updateDoc(docRef, {
         [`reactions.${emoji}`]: updatedUids
       });
+      setActiveReactionMsgId(null); // Close mobile reaction menu if open
     } catch (err) {
       console.error("Failed toggle reaction:", err);
     }
+  };
+
+  // Mobile Gesture Handlers
+  const handleTouchStart = (e, msg) => {
+    if (msg.deleted) return;
+    const touch = e.touches[0];
+    longPressRef.current = {
+      startX: touch.clientX,
+      startY: touch.clientY,
+      msgId: msg.id,
+      timer: setTimeout(() => {
+        if (window.navigator && window.navigator.vibrate) window.navigator.vibrate(50);
+        setActiveReactionMsgId(msg.id);
+      }, 500)
+    };
+  };
+
+  const handleTouchMove = (e, msg) => {
+    if (!longPressRef.current || msg.deleted) return;
+    const touch = e.touches[0];
+    const diffX = touch.clientX - longPressRef.current.startX;
+    const diffY = touch.clientY - longPressRef.current.startY;
+    
+    if (Math.abs(diffX) > 10 || Math.abs(diffY) > 10) {
+      clearTimeout(longPressRef.current.timer);
+      
+      // Swipe left to reply (negative diffX)
+      if (diffX < -15 && Math.abs(diffY) < 30) {
+        setSwipingMsgId(msg.id);
+        setSwipeOffset(Math.max(-80, diffX));
+      }
+    }
+  };
+
+  const handleTouchEnd = (e, msg) => {
+    if (longPressRef.current) {
+      clearTimeout(longPressRef.current.timer);
+    }
+    if (swipingMsgId === msg.id) {
+      if (swipeOffset <= -50) {
+        if (window.navigator && window.navigator.vibrate) window.navigator.vibrate(50);
+        setReplyTarget(msg);
+      }
+      setSwipingMsgId(null);
+      setSwipeOffset(0);
+    }
+    longPressRef.current = null;
   };
 
   // Filter messages for current private chat
@@ -274,38 +328,46 @@ export default function UnifiedChatView({ profile, groupMessages, privateMessage
     <div className="flex flex-col md:flex-row h-[calc(100vh-170px)] glass-premium rounded-3xl overflow-hidden fade-in border-2 border-[#82af96] dark:border-[#3c6550]">
 
       {/* Sidebar for choosing Group vs Private Friend */}
-      <div className="w-full md:w-80 border-l-2 border-[#82af96] dark:border-[#3c6550] bg-white/40 dark:bg-[#09171a]/40 flex flex-col shrink-0 text-right">
+      <div className="w-full md:w-80 border-l-2 border-[#82af96] dark:border-[#3c6550] bg-white/40 dark:bg-[#09171a]/40 flex flex-col shrink-0 text-right overflow-hidden">
 
         {/* Toggle General vs Private */}
-        <div className="p-4 grid grid-cols-2 gap-2 border-b-2 border-[#82af96] dark:border-[#3c6550]">
+        <div className="p-3 md:p-4 grid grid-cols-2 gap-2 border-b-2 border-[#82af96] dark:border-[#3c6550] shrink-0">
           <button
             onClick={() => { setActiveTab('group'); setSelectedFriend(null); }}
+<<<<<<< HEAD
             className={`py-2 px-3 rounded-xl font-black text-xs transition ${activeTab === 'group' ? 'bg-[#0e5e6f] text-white' : 'bg-[#bfebd4]/30 text-[#09171a]'}`}
+=======
+            className={`py-2 px-1 sm:px-3 rounded-xl font-black text-[10px] md:text-xs transition ${activeTab === 'group' ? 'bg-[#0e5e6f] text-white' : 'bg-[#bfebd4]/30 dark:bg-black/30 text-[#0e5e6f] dark:text-slate-300 hover:bg-[#bfebd4]/50 dark:hover:bg-black/50'}`}
+>>>>>>> f7a47b2e3adaf369f316f31bf2188640e213e7fb
           >
             الشات العام الدفعة
           </button>
           <button
             onClick={() => setActiveTab('private')}
+<<<<<<< HEAD
             className={`py-2 px-3 rounded-xl font-black text-xs transition ${activeTab === 'private' ? 'bg-[#0e5e6f] text-white' : 'bg-[#bfebd4]/30 text-[#09171a]'}`}
+=======
+            className={`py-2 px-1 sm:px-3 rounded-xl font-black text-[10px] md:text-xs transition ${activeTab === 'private' ? 'bg-[#0e5e6f] text-white' : 'bg-[#bfebd4]/30 dark:bg-black/30 text-[#0e5e6f] dark:text-slate-300 hover:bg-[#bfebd4]/50 dark:hover:bg-black/50'}`}
+>>>>>>> f7a47b2e3adaf369f316f31bf2188640e213e7fb
           >
             المحادثات الخاصة
           </button>
         </div>
 
         {/* Directory List based on Selection */}
-        <div className="flex-1 overflow-y-auto p-3 space-y-2">
+        <div className={`flex-none md:flex-1 overflow-x-auto md:overflow-x-hidden md:overflow-y-auto p-2 md:p-3 flex flex-row md:flex-col gap-2 no-scrollbar ${activeTab === 'group' ? 'flex-col overflow-y-auto max-h-32 md:max-h-full' : ''}`}>
           {activeTab === 'group' ? (
-            <div className="p-4 bg-[#bfebd4]/20 border border-[#82af96] rounded-xl">
-              <h4 className="font-black text-sm text-[#0e5e6f] dark:text-[#bfebd4] mb-1">📢 شات دفعة {profile.cohort}</h4>
-              <p className="text-xs text-slate-800 dark:text-slate-300 leading-relaxed font-semibold">
-                شات عام تفاعلي يضم جميع طلاب الدفعة. (للحفاظ على الخصوصية، يتم حذف جميع الرسائل نهائياً بعد مرور 3 أيام).
+            <div className="p-3 md:p-4 bg-[#bfebd4]/20 border border-[#82af96] rounded-xl shrink-0">
+              <h4 className="font-black text-xs md:text-sm text-[#0e5e6f] dark:text-[#bfebd4] mb-1">📢 شات دفعة {profile.cohort}</h4>
+              <p className="text-[10px] md:text-xs text-slate-800 dark:text-slate-300 leading-relaxed font-semibold">
+                شات عام للدفعة. يتم حذف جميع الرسائل نهائياً بعد مرور 3 أيام للحفاظ على الخصوصية والمساحة.
               </p>
             </div>
           ) : (
             <>
-              <h4 className="font-black text-xs text-[#0e5e6f] dark:text-[#bfebd4] mb-3 px-1">الزملاء النشطون ({acceptedFriends.length})</h4>
+              <h4 className="hidden md:block font-black text-xs text-[#0e5e6f] dark:text-[#bfebd4] mb-1 px-1">الزملاء النشطون ({acceptedFriends.length})</h4>
               {acceptedFriends.length === 0 ? (
-                <p className="text-xs text-slate-500 font-bold p-3 text-center">لا يوجد زملاء مضافون، ابحث عن زميل بالـ ID في دليل الأصدقاء.</p>
+                <p className="text-xs text-slate-500 font-bold p-3 text-center w-full">لا يوجد أصدقاء. أضف زملائك للدردشة!</p>
               ) : (
                 acceptedFriends.map(friend => {
                   const friendUnreadCount = getUnreadCountForFriend(friend.uid);
@@ -313,27 +375,26 @@ export default function UnifiedChatView({ profile, groupMessages, privateMessage
                     <button
                       key={friend.uid}
                       onClick={() => setSelectedFriend(friend)}
-                      className={`w-full p-3.5 rounded-xl flex items-center gap-3 transition text-right
+                      className={`min-w-[75px] max-w-[85px] md:min-w-0 md:max-w-none md:w-full p-2 md:p-3.5 rounded-xl flex flex-col md:flex-row items-center gap-1.5 md:gap-3 transition text-center md:text-right shrink-0
                         ${selectedFriend?.uid === friend.uid
                           ? 'bg-[#bfebd4]/40 border-2 border-[#0e5e6f]'
                           : 'bg-white dark:bg-[#0d2328] border border-slate-300 dark:border-slate-800 hover:bg-[#bfebd4]/20'}
                       `}
                     >
                       <div className="relative shrink-0">
-                        <div className="w-9 h-9 rounded-full bg-slate-200 border border-slate-300">
+                        <div className="w-11 h-11 md:w-9 md:h-9 rounded-full bg-slate-200 border border-slate-300">
                           <img src={getFriendAvatar(friend)} alt="avatar" className="w-full h-full rounded-full object-cover" />
                         </div>
-                        <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-[#0d2328] ${friend.status === 'online' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></span>
+                        <span className={`absolute bottom-0 right-0 w-3 h-3 md:w-2.5 md:h-2.5 rounded-full border-2 border-white dark:border-[#0d2328] ${friend.status === 'online' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></span>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1">
-                          <h5 className="font-black text-xs text-slate-900 dark:text-slate-100 truncate">{friend.name}</h5>
-                          <VerifiedBadge />
+                      <div className="flex-1 min-w-0 w-full overflow-hidden">
+                        <div className="flex items-center justify-center md:justify-start gap-1">
+                          <h5 className="font-black text-[10px] md:text-xs text-slate-900 dark:text-slate-100 truncate block w-full">{friend.name}</h5>
                         </div>
-                        <p className="text-[10px] text-slate-500 truncate font-bold">ID: {friend.studentId} • {friend.status === 'online' ? 'متصل' : 'أوفلاين'}</p>
+                        <p className="hidden md:block text-[10px] text-slate-500 truncate font-bold mt-0.5">ID: {friend.studentId}</p>
                       </div>
                       {friendUnreadCount > 0 && (
-                        <span className="bg-rose-600 text-white font-black text-[10px] w-5 h-5 rounded-full flex items-center justify-center animate-bounce shrink-0 shadow-md">
+                        <span className="absolute top-1 right-1 md:static bg-rose-600 text-white font-black text-[10px] w-5 h-5 rounded-full flex items-center justify-center animate-bounce shrink-0 shadow-md">
                           {friendUnreadCount}
                         </span>
                       )}
@@ -446,7 +507,13 @@ export default function UnifiedChatView({ profile, groupMessages, privateMessage
                       </div>
                     )}
 
-                    <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[70%] relative`}>
+                    <div 
+                      className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[70%] relative transition-transform duration-75`}
+                      style={swipingMsgId === msg.id ? { transform: `translateX(${swipeOffset}px)` } : {}}
+                      onTouchStart={(e) => handleTouchStart(e, msg)}
+                      onTouchMove={(e) => handleTouchMove(e, msg)}
+                      onTouchEnd={(e) => handleTouchEnd(e, msg)}
+                    >
 
                       {/* Sender Name */}
                       {!isMe && !msg.deleted && (
@@ -458,13 +525,13 @@ export default function UnifiedChatView({ profile, groupMessages, privateMessage
 
                       {/* Quoted Message Preview */}
                       {msg.replyTo && !msg.deleted && (
-                        <div className="bg-[#bfebd4]/30 dark:bg-[#1a3830]/30 border-r-4 border-[#0e5e6f] px-3 py-1.5 rounded-lg text-xs mb-1 max-w-full opacity-85">
+                        <div className="bg-[#bfebd4]/30 dark:bg-[#1a3830]/30 border-r-4 border-[#0e5e6f] px-3 py-1.5 rounded-lg text-xs mb-1 max-w-full opacity-85 w-full">
                           <span className="block font-black text-[10px] text-[#0e5e6f] dark:text-[#bfebd4] mb-0.5">رد على {msg.replyTo.senderName}:</span>
                           <p className="truncate text-slate-800 dark:text-slate-200">{msg.replyTo.text}</p>
                         </div>
                       )}
 
-                      <div className={`relative group px-4 py-3 rounded-2xl text-right leading-relaxed shadow-sm border-2
+                      <div className={`relative group px-3.5 md:px-4 py-2.5 md:py-3 rounded-2xl text-right leading-relaxed shadow-sm border-2
                         ${msg.deleted
                           ? 'bg-slate-100/40 dark:bg-slate-900/40 text-slate-500 italic border-dashed border-slate-300 dark:border-slate-800'
                           : isMe
@@ -506,7 +573,7 @@ export default function UnifiedChatView({ profile, groupMessages, privateMessage
                                 <button
                                   key={emoji}
                                   onClick={() => handleToggleReaction(msg, emoji)}
-                                  className={`px-2 py-0.5 rounded-full text-xs font-black border flex items-center gap-1 transition ${hasReacted ? 'bg-[#bfebd4] text-[#0e5e6f] border-[#0e5e6f]' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}
+                                  className={`px-2 py-0.5 rounded-full text-[10px] md:text-xs font-black border flex items-center gap-1 transition ${hasReacted ? 'bg-[#bfebd4] text-[#0e5e6f] border-[#0e5e6f]' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}
                                 >
                                   <span>{emoji}</span>
                                   <span>{count}</span>
@@ -516,9 +583,12 @@ export default function UnifiedChatView({ profile, groupMessages, privateMessage
                           </div>
                         )}
 
-                        {/* WhatsApp Hover / Touch Reaction Bar & options */}
+                        {/* Desktop Hover & Mobile Long-Press Reaction Bar */}
                         {!msg.deleted && (
-                          <div className="absolute top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-1 px-2.5 py-1 bg-white dark:bg-slate-900 rounded-full shadow-lg border-2 border-[#82af96] dark:border-[#3c6550] z-20 left-[-80px] md:left-auto md:right-[-90px] flex-row">
+                          <div className={`absolute top-1/2 -translate-y-1/2 items-center gap-1 px-2.5 py-1 bg-white dark:bg-slate-900 rounded-full shadow-lg border-2 border-[#82af96] dark:border-[#3c6550] z-20 flex-row
+                            ${activeReactionMsgId === msg.id ? 'flex' : 'hidden group-hover:hidden md:group-hover:flex'} 
+                            left-[-80px] md:left-auto md:right-[-90px]`}
+                          >
 
                             {/* Emoji quick reaction dots */}
                             <div className="flex gap-1 border-l pl-1.5 border-slate-200 dark:border-slate-800">
@@ -526,7 +596,7 @@ export default function UnifiedChatView({ profile, groupMessages, privateMessage
                                 <button
                                   key={emoji}
                                   onClick={() => handleToggleReaction(msg, emoji)}
-                                  className="text-sm hover:scale-130 transition active:scale-95"
+                                  className="text-sm hover:scale-130 transition active:scale-95 px-1"
                                 >
                                   {emoji}
                                 </button>
@@ -535,23 +605,31 @@ export default function UnifiedChatView({ profile, groupMessages, privateMessage
 
                             <button
                               type="button"
-                              onClick={() => setReplyTarget(msg)}
+                              onClick={() => { setReplyTarget(msg); setActiveReactionMsgId(null); }}
                               title="رد واقتباس"
-                              className="p-1 text-[#0e5e6f] dark:text-[#bfebd4] hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
+                              className="p-1.5 text-[#0e5e6f] dark:text-[#bfebd4] hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
                             >
-                              <CornerUpLeft size={13} />
+                              <CornerUpLeft size={14} />
                             </button>
                             {(isMe || (activeTab === 'group' && profile.role === 'admin')) && (
                               <button
                                 type="button"
-                                onClick={() => deleteMessage(msg.id, activeTab === 'private')}
+                                onClick={() => { deleteMessage(msg.id, activeTab === 'private'); setActiveReactionMsgId(null); }}
                                 title={profile.role === 'admin' && !isMe ? "حذف كمسؤول" : "حذف للجميع"}
-                                className="p-1 text-rose-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
+                                className="p-1.5 text-rose-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
                               >
-                                <Trash2 size={13} />
+                                <Trash2 size={14} />
                               </button>
                             )}
                           </div>
+                        )}
+                        
+                        {/* Overlay to close mobile reaction menu if clicked outside bubble */}
+                        {activeReactionMsgId === msg.id && (
+                           <div 
+                             className="fixed inset-0 z-10 hidden sm:hidden" 
+                             onClick={(e) => { e.stopPropagation(); setActiveReactionMsgId(null); }}
+                           />
                         )}
                       </div>
                     </div>

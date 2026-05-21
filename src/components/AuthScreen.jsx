@@ -1,10 +1,19 @@
+<<<<<<< HEAD
 import  { useState } from 'react';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
+=======
+import React, { useState } from 'react';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendEmailVerification, sendPasswordResetEmail } from 'firebase/auth';
+>>>>>>> f7a47b2e3adaf369f316f31bf2188640e213e7fb
 import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db, appId } from '../firebase';
 import { COHORTS, MAJORS } from '../constants';
 import { 
+<<<<<<< HEAD
    AlertCircle, CheckCircle, Phone, Mail, Lock, EyeOff, Eye, UserPlus, Sun, Moon 
+=======
+  GraduationCap, AlertCircle, CheckCircle, Phone, Mail, Lock, EyeOff, Eye, UserPlus, Sun, Moon, X, Key
+>>>>>>> f7a47b2e3adaf369f316f31bf2188640e213e7fb
 } from 'lucide-react';
 import emailjs from '@emailjs/browser';
 
@@ -22,6 +31,45 @@ export default function AuthScreen({ onProfileComplete, theme, toggleTheme }) {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  // Forgot Password State
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetMessage, setResetMessage] = useState(null);
+  const [isResetting, setIsResetting] = useState(false);
+
+  const handlePasswordReset = async (e) => {
+    e.preventDefault();
+    if (!resetEmail.trim()) {
+      setResetMessage({ type: 'error', text: 'يرجى إدخال البريد الإلكتروني الخاص بك.' });
+      return;
+    }
+    
+    // Convert to actual email if they typed ID/Phone (basic check, normally we should do the DB lookup here too, but Firebase requires real email for reset)
+    // To keep it simple and secure, Firebase Reset requires the exact registered email.
+    if (!resetEmail.includes('@')) {
+       setResetMessage({ type: 'error', text: 'يرجى إدخال البريد الإلكتروني الفعلي (email@...) لاستلام رابط التفعيل، وليس رقم الهاتف.' });
+       return;
+    }
+
+    setIsResetting(true);
+    setResetMessage(null);
+    try {
+      await sendPasswordResetEmail(auth, resetEmail);
+      setResetMessage({ type: 'success', text: 'تم إرسال رابط استعادة كلمة المرور بنجاح! يرجى تفقد صندوق الوارد (أو مجلد Spam/الرسائل غير المرغوب فيها).' });
+    } catch (err) {
+      console.error(err);
+      let errorMsg = 'حدث خطأ غير متوقع. يرجى المحاولة لاحقاً.';
+      if (err.code === 'auth/user-not-found') {
+        errorMsg = 'لا يوجد حساب مسجل بهذا البريد الإلكتروني.';
+      } else if (err.code === 'auth/invalid-email') {
+        errorMsg = 'صيغة البريد الإلكتروني غير صحيحة.';
+      }
+      setResetMessage({ type: 'error', text: errorMsg });
+    } finally {
+      setIsResetting(false);
+    }
+  };
 
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
@@ -296,6 +344,22 @@ export default function AuthScreen({ onProfileComplete, theme, toggleTheme }) {
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </div>
+            
+            {isLogin && (
+              <div className="flex justify-start mt-2 fade-in">
+                <button 
+                  type="button"
+                  onClick={() => { 
+                    setShowForgotPassword(true); 
+                    setResetMessage(null); 
+                    setResetEmail(formData.email.includes('@') ? formData.email : ''); 
+                  }}
+                  className="text-[10px] md:text-xs font-black text-[#0e5e6f] dark:text-[#bfebd4] hover:text-[#178a9e] transition underline underline-offset-4"
+                >
+                  نسيت كلمة المرور؟
+                </button>
+              </div>
+            )}
           </div>
 
           {!isLogin && (
@@ -353,6 +417,72 @@ export default function AuthScreen({ onProfileComplete, theme, toggleTheme }) {
           </button>
         </div>
       </div>
+
+      {/* Forgot Password Modal */}
+      {showForgotPassword && (
+        <div className="fixed inset-0 bg-slate-950/85 dark:bg-black/95 z-[9999] flex items-center justify-center p-4 backdrop-blur-lg transition-all duration-500 fade-in select-none">
+          <div className="bg-white/95 dark:bg-[#09171a]/95 border-2 border-[#82af96] dark:border-[#3c6550] rounded-[24px] p-6 md:p-8 max-w-sm w-full shadow-2xl scale-in text-right relative overflow-hidden">
+            
+            <button 
+              type="button"
+              onClick={() => setShowForgotPassword(false)}
+              className="absolute top-4 left-4 p-2 bg-slate-200 dark:bg-slate-800 rounded-full hover:bg-slate-300 transition text-slate-700 dark:text-slate-300 z-10"
+            >
+              <X size={16} />
+            </button>
+
+            <div className="flex justify-center mb-4 relative z-10">
+               <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-[#0e5e6f] to-[#bfebd4] flex items-center justify-center shadow-lg border-2 border-white dark:border-[#09171a]">
+                 <Key size={24} className="text-white dark:text-[#09171a]" />
+               </div>
+            </div>
+
+            <h3 className="text-lg font-black text-[#0e5e6f] dark:text-[#bfebd4] text-center mb-2 relative z-10">
+              استعادة كلمة المرور
+            </h3>
+            <p className="text-xs font-bold text-slate-500 dark:text-slate-400 text-center mb-6 relative z-10">
+              أدخل بريدك الإلكتروني المسجل وسنرسل لك رابطاً لإعادة تعيين كلمة المرور فوراً.
+            </p>
+
+            {resetMessage && (
+              <div className={`p-3 rounded-xl mb-4 text-xs font-black flex items-start gap-2 relative z-10 ${
+                resetMessage.type === 'success' 
+                  ? 'bg-emerald-50 text-emerald-900 border border-emerald-200' 
+                  : 'bg-rose-50 text-rose-900 border border-rose-200'
+              }`}>
+                {resetMessage.type === 'success' ? <CheckCircle className="shrink-0 mt-0.5" size={16} /> : <AlertCircle className="shrink-0 mt-0.5" size={16} />}
+                <span>{resetMessage.text}</span>
+              </div>
+            )}
+
+            <form onSubmit={handlePasswordReset} className="relative z-10">
+              <div className="mb-4">
+                <div className="relative">
+                  <input 
+                    type="email" 
+                    required 
+                    placeholder="البريد الإلكتروني..."
+                    className="w-full px-10 py-3 rounded-xl input-academic font-black text-left focus:outline-none" 
+                    dir="ltr"
+                    value={resetEmail} 
+                    onChange={e => setResetEmail(e.target.value)} 
+                  />
+                  <Mail className="absolute top-3.5 right-3 text-[#0e5e6f] dark:text-[#bfebd4]" size={18} />
+                </div>
+              </div>
+
+              <button 
+                type="submit" 
+                disabled={isResetting}
+                className="w-full btn-primary text-white font-extrabold py-3 px-4 rounded-xl text-center shadow-lg hover:shadow-xl transition flex items-center justify-center"
+              >
+                {isResetting ? 'جاري الإرسال...' : 'إرسال رابط الاستعادة'}
+              </button>
+            </form>
+
+          </div>
+        </div>
+      )}
     </div>
   );
 }
