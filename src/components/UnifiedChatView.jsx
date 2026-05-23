@@ -65,8 +65,8 @@ export default function UnifiedChatView({ profile, groupMessages, privateMessage
     return [uid1, uid2].sort().join('_');
   };
 
-  const cohortSafe = (profile.role === 'admin' && adminSelectedCohort ? adminSelectedCohort : (profile.cohort || 'الفرقة الأولى')).replace(/\s+/g, '_');
-  const majorSafe = (profile.role === 'admin' && adminSelectedMajor ? adminSelectedMajor : (profile.major || 'عام')).replace(/\s+/g, '_');
+  const cohortSafe = (profile.cohort || 'الفرقة الأولى').replace(/\s+/g, '_');
+  const majorSafe = (profile.major || 'عام').replace(/\s+/g, '_');
   const channelId = activeTab === 'group'
     ? `group_${cohortSafe}_${majorSafe}`
     : (selectedFriend ? `private_${getPrivateChatKey(profile.uid, selectedFriend.uid)}` : null);
@@ -511,35 +511,7 @@ export default function UnifiedChatView({ profile, groupMessages, privateMessage
         <div className={`flex-none md:flex-1 overflow-x-auto md:overflow-x-hidden md:overflow-y-auto p-2 md:p-3 flex flex-row md:flex-col gap-2 no-scrollbar ${activeTab === 'group' ? 'flex-col overflow-y-auto max-h-32 md:max-h-full' : ''}`}>
           {activeTab === 'group' ? (
             <div className="p-3 md:p-4 bg-[#bfebd4]/20 border border-[#82af96] rounded-xl shrink-0">
-              {profile.role === 'admin' ? (
-                <div className="mb-2 flex flex-col gap-2">
-                  <label className="text-xs font-black text-[#0e5e6f] dark:text-[#bfebd4] block">اختر الفرقة والتخصص لمراقبة الشات:</label>
-                  <select
-                    value={adminSelectedCohort}
-                    onChange={(e) => setAdminSelectedCohort(e.target.value)}
-                    className="w-full text-xs p-1.5 rounded-lg border border-[#82af96] bg-white dark:bg-[#09171a] text-[#0e5e6f] dark:text-[#bfebd4] font-bold outline-none"
-                  >
-                    <option value="الفرقة الأولى">الفرقة الأولى</option>
-                    <option value="الفرقة الثانية">الفرقة الثانية</option>
-                    <option value="الفرقة الثالثة">الفرقة الثالثة</option>
-                    <option value="الفرقة الرابعة">الفرقة الرابعة</option>
-                  </select>
-                  <select
-                    value={adminSelectedMajor}
-                    onChange={(e) => setAdminSelectedMajor(e.target.value)}
-                    className="w-full text-xs p-1.5 rounded-lg border border-[#82af96] bg-white dark:bg-[#09171a] text-[#0e5e6f] dark:text-[#bfebd4] font-bold outline-none"
-                  >
-                    <option value="عام">عام</option>
-                    <option value="علوم حاسب">علوم حاسب</option>
-                    <option value="نظم معلومات">نظم معلومات</option>
-                    <option value="إدارة أعمال">إدارة أعمال</option>
-                    <option value="محاسبة">محاسبة</option>
-                    <option value="التسويق">التسويق</option>
-                  </select>
-                </div>
-              ) : (
-                <h4 className="font-black text-xs md:text-sm text-[#0e5e6f] dark:text-[#bfebd4] mb-1">📢 شات الدفعة: {profile.cohort} - {profile.major || 'عام'}</h4>
-              )}
+              <h4 className="font-black text-xs md:text-sm text-[#0e5e6f] dark:text-[#bfebd4] mb-1">📢 شات الدفعة: {profile.cohort} - {profile.major || 'عام'}</h4>
               <p className="text-[10px] md:text-xs text-slate-800 dark:text-slate-300 leading-relaxed font-semibold">
                 شات عام للدفعة. يتم حذف جميع الرسائل نهائياً بعد مرور 3 أيام للحفاظ على الخصوصية والمساحة.
               </p>

@@ -495,8 +495,8 @@ export default function App() {
     
     let groupChatFirstLoad = true;
     
-    const cohortSafe = (profile.role === 'admin' && adminSelectedCohort ? adminSelectedCohort : (profile.cohort || 'الفرقة الأولى')).replace(/\s+/g, '_');
-    const majorSafe = (profile.role === 'admin' && adminSelectedMajor ? adminSelectedMajor : (profile.major || 'عام')).replace(/\s+/g, '_');
+    const cohortSafe = (profile.cohort || 'الفرقة الأولى').replace(/\s+/g, '_');
+    const majorSafe = (profile.major || 'عام').replace(/\s+/g, '_');
     const chatRef = collection(db, 'artifacts', appId, 'public', 'data', `chat_${cohortSafe}_${majorSafe}`);
     
     const unsubGroup = onSnapshot(chatRef, (snapshot) => {
