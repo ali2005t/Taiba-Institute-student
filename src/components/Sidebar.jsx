@@ -17,9 +17,6 @@ export default function Sidebar({ profile, currentView, setCurrentView, handleLo
     { id: 'profile', label: 'الملف الشخصي', icon: User },
   ];
 
-  if (profile?.role === 'admin') {
-    navItems.push({ id: 'admin', label: 'صلاحيات الإدارة الأكاديمية', icon: ShieldCheck });
-  }
 
   return (
     <>
