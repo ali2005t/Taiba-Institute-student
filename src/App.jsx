@@ -16,7 +16,8 @@ import ProfileView from './components/ProfileView';
 import AdminView from './components/AdminView';
 import NotificationsView from './components/NotificationsView';
 import NewsView from './components/NewsView';
-
+import PrivacyPolicyView from './components/PrivacyPolicyView';
+import ContactView from './components/ContactView';
 
 // Icons
 import { Settings, Search, Bell, Sun, Moon, AlertTriangle, Menu } from 'lucide-react';
@@ -585,10 +586,27 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#09171a]">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-[#178a9e] mx-auto mb-4"></div>
-          <p className="text-[#bfebd4] font-bold text-lg">بوابة معهد طيبة الأكاديمي...</p>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#09171a] px-4">
+        <div className="text-center space-y-6">
+          {/* Logo with premium styling */}
+          <div className="w-24 h-24 md:w-28 md:h-28 rounded-full bg-black flex items-center justify-center shadow-2xl border-2 border-[#178a9e]/50 mx-auto overflow-hidden animate-pulse">
+            <img src="/logo.jpg" alt="Taiba Logo" className="w-full h-full object-cover scale-110" />
+          </div>
+          
+          {/* Spinner */}
+          <div className="relative w-16 h-16 mx-auto">
+            <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-[#178a9e]"></div>
+          </div>
+          
+          {/* Brand Name in Arabic and English */}
+          <div className="space-y-2">
+            <h2 className="text-[#bfebd4] font-black text-2xl md:text-3xl tracking-wide">
+              طلاب معهد طيبة
+            </h2>
+            <p className="text-[#178a9e] font-extrabold text-sm md:text-base tracking-widest uppercase">
+              Taiba Institute Students
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -824,10 +842,16 @@ export default function App() {
               />
             )}
             {currentView === 'admin' && profile.role === 'admin' && <AdminView profile={profile} />}
+            {currentView === 'privacy' && <PrivacyPolicyView />}
+            {currentView === 'contact' && <ContactView />}
           </main>
           
-          <footer className="py-2.5 text-center glass-premium border-none rounded-none mt-auto select-none">
-            <span className="signature-font text-[#0e5e6f] dark:text-[#bfebd4] font-black tracking-wide">
+          <footer className="py-3 px-4 glass-premium border-none rounded-none mt-auto select-none flex flex-col md:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-6 text-[#0e5e6f] dark:text-[#bfebd4] font-extrabold text-[11px] md:text-xs">
+              <button onClick={() => setCurrentView('privacy')} className="hover:underline hover:text-emerald-500 transition-colors">سياسة الخصوصية</button>
+              <button onClick={() => setCurrentView('contact')} className="hover:underline hover:text-emerald-500 transition-colors">تواصل معنا</button>
+            </div>
+            <span className="signature-font text-[#0e5e6f] dark:text-[#bfebd4] font-black tracking-wide text-[11px] md:text-xs">
               Developed by Taiba Institute Student – <span className="text-rose-600 dark:text-yellow-400">ENG/EL LOL</span>
             </span>
           </footer>
