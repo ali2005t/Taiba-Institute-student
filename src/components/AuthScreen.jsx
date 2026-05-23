@@ -118,6 +118,22 @@ export default function AuthScreen({ user, onProfileComplete, theme, toggleTheme
           throw new Error('يرجى ملء كافة الخانات الأكاديمية المطلوبة لمتابعة التسجيل');
         }
 
+        // Enforce @gmail.com only (with exception for admin accounts)
+        const emailLower = formData.email.trim().toLowerCase();
+        const isValidGmail = emailLower.endsWith('@gmail.com');
+        const isAdminEmail = emailLower.includes('admin@taiba.edu');
+
+        if (!isValidGmail && !isAdminEmail) {
+          throw new Error('عذراً، يجب التسجيل باستخدام بريد Gmail فقط (ينتهي بـ @gmail.com).');
+        }
+
+        // Enforce exactly 11-digit phone number
+        const phoneClean = formData.phone.trim();
+        const isElevenDigits = /^\d{11}$/.test(phoneClean);
+        if (!isElevenDigits) {
+          throw new Error('يجب أن يتكون رقم الهاتف من 11 رقماً فقط (مثال: 01012345678).');
+        }
+
         // Avoid fake emails
         const fakeEmailDomains = ['tempmail', '10minutemail', 'temp-mail', 'throwawaymail', 'yopmail'];
         const emailDomain = formData.email.split('@')[1] || '';
