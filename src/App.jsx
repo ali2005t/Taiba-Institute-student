@@ -31,6 +31,20 @@ const playNotificationSound = () => {
   }
 };
 
+const showBrowserNotification = (title, body) => {
+  if ('Notification' in window && Notification.permission === 'granted') {
+    try {
+      new Notification(title, {
+        body: body,
+        icon: '/logo.jpg',
+        badge: '/logo.jpg'
+      });
+    } catch (e) {
+      console.warn("Could not fire desktop notification:", e);
+    }
+  }
+};
+
 const renderTextWithLinks = (text) => {
   if (!text) return text;
   const urlRegex = /(https?:\/\/[^\s]+)/g;
@@ -183,6 +197,20 @@ export default function App() {
   const [showReportForm, setShowReportForm] = useState(false);
   const [reportReason, setReportReason] = useState('');
   const [lastSeenNotifications, setLastSeenNotifications] = useState(parseInt(localStorage.getItem('lastSeenNotifications') || '0'));
+  const [mentionToast, setMentionToast] = useState(null);
+  const [lastSeenGroupChat, setLastSeenGroupChat] = useState(parseInt(localStorage.getItem('lastSeenGroupChat') || '0'));
+
+  useEffect(() => {
+    if (currentView === 'chat') {
+      const now = Date.now();
+      localStorage.setItem('lastSeenGroupChat', now.toString());
+      setLastSeenGroupChat(now);
+    }
+  }, [currentView, chatMessages]);
+  
+  // Admin Chat States
+  const [adminSelectedCohort, setAdminSelectedCohort] = useState('');
+  const [adminSelectedMajor, setAdminSelectedMajor] = useState('');
 
   const alerts = announcements.filter(a => a.type !== 'news');
   const news = announcements.filter(a => a.type === 'news');
@@ -220,6 +248,38 @@ export default function App() {
     };
     initAuth();
 
+    const setupPushNotifications = async (uid) => {
+      if (!('Notification' in window)) {
+        console.warn("This browser does not support desktop notifications");
+        return;
+      }
+      try {
+        if ('serviceWorker' in navigator) {
+          const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+          console.log('Service Worker registered successfully:', registration);
+        }
+        if (Notification.permission !== 'granted') {
+          await Notification.requestPermission();
+        }
+        try {
+          const { getMessaging, getToken } = await import('firebase/messaging');
+          const messaging = getMessaging();
+          const token = await getToken(messaging, {
+            vapidKey: 'BO0De3jjnP_3nJn-MkgIJSuyqfRCjWxoWE2bwmCJkG5aTkQ8O8E5GTaPAjtYaEQH0xOg8wApBIH9t-Rov7BGL0M'
+          });
+          if (token) {
+            console.log("FCM registration token obtained:", token);
+            await updateDoc(doc(db, 'artifacts', appId, 'users', uid, 'profile', 'details'), { pushToken: token });
+            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'student_directory', uid), { pushToken: token });
+          }
+        } catch (fcmErr) {
+          console.log("FCM messaging skipped or pending configuration:", fcmErr.message);
+        }
+      } catch (e) {
+        console.error("Error setting up notifications:", e);
+      }
+    };
+
     let unsubscribeProfile = null;
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -231,6 +291,7 @@ export default function App() {
       if (currentUser) {
         // Admin accounts bypass email verification, so we must load their profile too
         if (currentUser.emailVerified || currentUser.email.includes('admin@taiba.edu')) {
+          setupPushNotifications(currentUser.uid);
           // Rule 1: Private Profile Path
           const userDocRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'profile', 'details');
           unsubscribeProfile = onSnapshot(userDocRef, (docSnap) => {
@@ -294,6 +355,7 @@ export default function App() {
           });
           if (hasNew) {
             playNotificationSound();
+            showBrowserNotification("📚 محاضرة جديدة", "تم رفع محاضرة أو ملخص جديد لفرقتك الدراسية.");
           }
         }
         materialsFirstLoad = false;
@@ -319,6 +381,7 @@ export default function App() {
           });
           if (hasNew) {
             playNotificationSound();
+            showBrowserNotification("📝 اختبار جديد", "تمت إضافة اختبار جديد لفرقتك الدراسية. بالتوفيق!");
           }
         }
         examsFirstLoad = false;
@@ -327,44 +390,14 @@ export default function App() {
       }, (err) => console.error(err));
     };
 
-    // Fetch Group Chat Messages for current cohort
-    const fetchGroupChat = () => {
-      const cohortSafe = profile.cohort.replace(/\s+/g, '_');
-      const chatRef = collection(db, 'artifacts', appId, 'public', 'data', `chat_${cohortSafe}`);
-      return onSnapshot(chatRef, (snapshot) => {
-        const msgs = [];
-        const threeDaysAgo = Date.now() - (3 * 24 * 60 * 60 * 1000);
-        
-        snapshot.docs.forEach(docSnap => {
-          const data = docSnap.data();
-          const msgTime = data.timestamp?.toMillis() || 0;
-          
-          // التنظيف الذاتي: مسح الرسائل التي مر عليها 3 أيام
-          if (msgTime > 0 && msgTime < threeDaysAgo) {
-            deleteDoc(docSnap.ref).catch(err => console.error("Auto-delete chat error:", err));
-          } else {
-            msgs.push({ id: docSnap.id, ...data });
-          }
-        });
-
-        msgs.sort((a, b) => (a.timestamp?.toMillis() || 0) - (b.timestamp?.toMillis() || 0));
-        
-        if (!groupChatFirstLoad && msgs.length > 0) {
-          const lastMsg = msgs[msgs.length - 1];
-          if (lastMsg.senderId !== profile.uid) {
-            playNotificationSound();
-          }
-        }
-        groupChatFirstLoad = false;
-        setChatMessages(msgs);
-      }, (err) => console.error(err));
-    };
-
     // Fetch Student Directory (to search by Student ID)
     const fetchStudents = () => {
       const dirRef = collection(db, 'artifacts', appId, 'public', 'data', 'student_directory');
       return onSnapshot(dirRef, (snapshot) => {
-        setStudentDirectory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setStudentDirectory(snapshot.docs.map(doc => {
+          const data = doc.data();
+          return { id: doc.id, uid: doc.id, ...data };
+        }));
       }, (err) => console.error(err));
     };
 
@@ -387,6 +420,7 @@ export default function App() {
           const lastMsg = msgs[msgs.length - 1];
           if (lastMsg.senderId !== profile.uid) {
             playNotificationSound();
+            showBrowserNotification(`💬 رسالة من ${lastMsg.senderNickname || lastMsg.senderName}`, lastMsg.text);
           }
         }
         privateChatFirstLoad = false;
@@ -403,6 +437,8 @@ export default function App() {
         
         if (!announcementsFirstLoad && list.length > 0) {
           playNotificationSound();
+          const latest = list[0];
+          showBrowserNotification(latest.type === 'alert' ? '📢 تنبيه عاجل وهام!' : '📰 إشعار دراسي جديد', latest.msg);
         }
         announcementsFirstLoad = false;
         setAnnouncements(list.filter(a => (!a.cohort || a.cohort === profile.cohort) && (!a.major || a.major === 'كل التخصصات' || a.major === profile.major)));
@@ -411,7 +447,6 @@ export default function App() {
 
     const unsubMat = fetchMaterials();
     const unsubEx = fetchExams();
-    const unsubGroup = fetchGroupChat();
     const unsubDir = fetchStudents();
     const unsubFr = fetchFriendships();
     const unsubPriv = fetchPrivateChats();
@@ -420,13 +455,61 @@ export default function App() {
     return () => {
       unsubMat();
       unsubEx();
-      unsubGroup();
       unsubDir();
       unsubFr();
       unsubPriv();
       unsubAnn();
     };
   }, [user, profile]);
+
+  // Isolated useEffect for Group Chat fetching
+  useEffect(() => {
+    if (!user || !profile) return;
+    
+    let groupChatFirstLoad = true;
+    
+    const cohortSafe = (profile.role === 'admin' && adminSelectedCohort ? adminSelectedCohort : (profile.cohort || 'الفرقة الأولى')).replace(/\s+/g, '_');
+    const majorSafe = (profile.role === 'admin' && adminSelectedMajor ? adminSelectedMajor : (profile.major || 'عام')).replace(/\s+/g, '_');
+    const chatRef = collection(db, 'artifacts', appId, 'public', 'data', `chat_${cohortSafe}_${majorSafe}`);
+    
+    const unsubGroup = onSnapshot(chatRef, (snapshot) => {
+      const msgs = [];
+      const threeDaysAgo = Date.now() - (3 * 24 * 60 * 60 * 1000);
+      
+      snapshot.docs.forEach(docSnap => {
+        const data = docSnap.data();
+        const msgTime = data.timestamp?.toMillis() || 0;
+        
+        if (msgTime > 0 && msgTime < threeDaysAgo) {
+          deleteDoc(docSnap.ref).catch(err => console.error("Auto-delete chat error:", err));
+        } else {
+          msgs.push({ id: docSnap.id, ...data });
+        }
+      });
+
+      msgs.sort((a, b) => (a.timestamp?.toMillis() || 0) - (b.timestamp?.toMillis() || 0));
+      
+      if (!groupChatFirstLoad && msgs.length > 0) {
+        const lastMsg = msgs[msgs.length - 1];
+        if (lastMsg.senderId !== profile.uid) {
+          playNotificationSound();
+          if (lastMsg.mentions && (lastMsg.mentions.includes(profile.uid) || (profile.role === 'admin' && lastMsg.mentions.includes('admin_support')))) {
+            setMentionToast({
+              senderName: lastMsg.senderNickname || lastMsg.senderName,
+              text: lastMsg.text,
+              id: lastMsg.id
+            });
+            showBrowserNotification(`🔔 منشن لك من ${lastMsg.senderNickname || lastMsg.senderName}`, lastMsg.text);
+            setTimeout(() => setMentionToast(null), 8000);
+          }
+        }
+      }
+      groupChatFirstLoad = false;
+      setChatMessages(msgs);
+    }, (err) => console.error(err));
+
+    return () => unsubGroup();
+  }, [user, profile, adminSelectedCohort, adminSelectedMajor]);
 
   // Update Online/Offline status in student directory
   useEffect(() => {
@@ -510,6 +593,7 @@ export default function App() {
   }
 
   const totalUnreadPrivate = privateChatMessages.filter(m => m.senderId !== profile?.uid && !m.read).length;
+  const unreadGroupCount = chatMessages.filter(m => m.senderId !== profile?.uid && (m.timestamp?.toMillis() || 0) > lastSeenGroupChat).length;
 
   return (
     <div className="min-h-screen academic-bg text-[#051619] dark:text-[#f0f7f4] transition-colors duration-300 flex flex-col">
@@ -530,7 +614,36 @@ export default function App() {
         </div>
       </div>
 
-      <div className="flex flex-1 h-[calc(100vh-38px)] overflow-hidden">
+      <div className="flex flex-1 h-[calc(100vh-38px)] overflow-hidden relative">
+        
+        {/* Mention Toast Notification */}
+        {mentionToast && (
+          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50 w-[90%] md:w-[400px] glass-premium rounded-2xl p-4 shadow-2xl border-2 border-amber-400 dark:border-amber-500 flex items-start gap-4 animate-slide-down" onClick={() => {
+            setCurrentView('chat');
+            setMentionToast(null);
+          }}>
+            <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center shrink-0 border border-amber-300">
+              <MessageCircle className="text-amber-600 dark:text-amber-400" size={20} />
+            </div>
+            <div className="flex-1 text-right cursor-pointer">
+              <h4 className="text-xs font-black text-slate-900 dark:text-[#bfebd4] mb-1">
+                تم ذكرك (Mention) في الشات
+              </h4>
+              <p className="text-[10px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                بواسطة: <span className="text-[#0e5e6f] dark:text-[#bfebd4]">{mentionToast.senderName}</span>
+              </p>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-2 italic">
+                "{mentionToast.text}"
+              </p>
+            </div>
+            <button 
+              className="p-1 rounded-full bg-slate-200/50 hover:bg-rose-500/20 text-slate-500 hover:text-rose-500 transition shrink-0"
+              onClick={(e) => { e.stopPropagation(); setMentionToast(null); }}
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
         
         {/* Sidebar */}
         <Sidebar 
@@ -541,6 +654,7 @@ export default function App() {
           isOpen={sidebarOpen}
           setIsOpen={setSidebarOpen}
           unreadPrivateCount={totalUnreadPrivate}
+          unreadGroupCount={unreadGroupCount}
         />
 
         {/* Main Panel */}
@@ -670,7 +784,7 @@ export default function App() {
             {currentView === 'exams' && <ExamsView exams={exams} db={db} appId={appId} profile={profile} initialTab="mcq" />}
             {currentView === 'exams_mcq' && <ExamsView exams={exams} db={db} appId={appId} profile={profile} initialTab="mcq" />}
             {currentView === 'exams_schedules' && <ExamsView exams={exams} db={db} appId={appId} profile={profile} initialTab="schedules" />}
-            {currentView === 'chat' && <UnifiedChatView profile={profile} groupMessages={chatMessages} privateMessages={privateChatMessages} friendships={friendships} studentDirectory={studentDirectory} onViewProfile={setActiveProfileModal} />}
+            {currentView === 'chat' && <UnifiedChatView profile={profile} groupMessages={chatMessages} privateMessages={privateChatMessages} friendships={friendships} studentDirectory={studentDirectory} onViewProfile={setActiveProfileModal} adminSelectedCohort={adminSelectedCohort} setAdminSelectedCohort={setAdminSelectedCohort} adminSelectedMajor={adminSelectedMajor} setAdminSelectedMajor={setAdminSelectedMajor} />}
             {currentView === 'friends' && <FriendSystemView profile={profile} studentDirectory={studentDirectory} friendships={friendships} onViewProfile={setActiveProfileModal} />}
             {currentView === 'news' && <NewsView news={news} />}
             {currentView === 'notifications' && <NotificationsView announcements={alerts} />}
@@ -684,7 +798,6 @@ export default function App() {
               />
             )}
             {currentView === 'admin' && profile.role === 'admin' && <AdminView profile={profile} />}
-            {currentView === 'notifications' && <NotificationsView announcements={announcements} />}
           </main>
           
           <footer className="py-2.5 text-center glass-premium border-none rounded-none mt-auto select-none">

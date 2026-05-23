@@ -4,7 +4,7 @@ import {
 } from 'lucide-react';
 import VerifiedBadge from './VerifiedBadge';
 
-export default function Sidebar({ profile, currentView, setCurrentView, handleLogout, isOpen, setIsOpen, unreadPrivateCount }) {
+export default function Sidebar({ profile, currentView, setCurrentView, handleLogout, isOpen, setIsOpen, unreadPrivateCount, unreadGroupCount }) {
   const [coursesExpanded, setCoursesExpanded] = useState(true);
   const [examsExpanded, setExamsExpanded] = useState(true);
 
@@ -190,9 +190,9 @@ export default function Sidebar({ profile, currentView, setCurrentView, handleLo
               >
                 <Icon size={18} className={isActive ? 'text-white' : 'text-[#0e5e6f] dark:text-[#bfebd4]'} />
                 <span className="flex-1 text-right">{item.label}</span>
-                {item.id === 'chat' && unreadPrivateCount > 0 && (
-                  <span className="bg-rose-600 text-white font-black text-[10px] w-5 h-5 rounded-full flex items-center justify-center animate-bounce shrink-0 shadow-md">
-                    {unreadPrivateCount}
+                {item.id === 'chat' && (unreadPrivateCount + unreadGroupCount) > 0 && (
+                  <span className="bg-rose-600 text-white font-black text-[10px] px-1.5 min-w-5 h-5 rounded-full flex items-center justify-center animate-bounce shrink-0 shadow-md">
+                    {unreadPrivateCount + unreadGroupCount}
                   </span>
                 )}
               </button>

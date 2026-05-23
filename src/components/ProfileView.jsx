@@ -81,9 +81,11 @@ export default function ProfileView({ profile, studentDirectory, onProfileUpdate
       const updateData = { [field]: value };
       if (field === 'hideEmail') {
         updateData.email = value ? "مخفي بواسطة المستخدم 🔒" : profile.email;
+        if (value) updateData.realEmail = profile.email;
       }
       if (field === 'hidePhone') {
         updateData.phone = value ? "مخفي بواسطة المستخدم 🔒" : profile.phone;
+        if (value) updateData.realPhone = profile.phone;
       }
       
       await updateDoc(publicDocRef, updateData);

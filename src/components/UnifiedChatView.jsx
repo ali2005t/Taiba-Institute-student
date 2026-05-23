@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { collection, doc, addDoc, updateDoc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db, appId } from '../firebase';
-import { Users, CornerUpLeft, Trash2, X, Smile } from 'lucide-react';
+import { Users, CornerUpLeft, Trash2, X, Smile, Flag } from 'lucide-react';
 import VerifiedBadge from './VerifiedBadge';
 
-export default function UnifiedChatView({ profile, groupMessages, privateMessages, friendships, studentDirectory, onViewProfile }) {
+export default function UnifiedChatView({ profile, groupMessages, privateMessages, friendships, studentDirectory, onViewProfile, adminSelectedCohort, setAdminSelectedCohort, adminSelectedMajor, setAdminSelectedMajor }) {
   const [activeTab, setActiveTab] = useState('group'); // 'group' or 'private'
   const [selectedFriend, setSelectedFriend] = useState(null); // active private chat friend profile
   const [newMessage, setNewMessage] = useState('');
@@ -13,6 +13,17 @@ export default function UnifiedChatView({ profile, groupMessages, privateMessage
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const inputRef = useRef(null);
+
+  // Reporting State
+  const [reportingMsg, setReportingMsg] = useState(null);
+  const [reportReason, setReportReason] = useState('');
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+
+  // Mentions State
+  const [mentionQuery, setMentionQuery] = useState(null);
+  const [mentionList, setMentionList] = useState([]);
+  const [mentionCursorIndex, setMentionCursorIndex] = useState(0);
 
   // Mobile Touch Gestures State
   const [activeReactionMsgId, setActiveReactionMsgId] = useState(null);
@@ -54,9 +65,10 @@ export default function UnifiedChatView({ profile, groupMessages, privateMessage
     return [uid1, uid2].sort().join('_');
   };
 
-  const cohortSafe = profile.cohort.replace(/\s+/g, '_');
+  const cohortSafe = (profile.role === 'admin' && adminSelectedCohort ? adminSelectedCohort : (profile.cohort || 'الفرقة الأولى')).replace(/\s+/g, '_');
+  const majorSafe = (profile.role === 'admin' && adminSelectedMajor ? adminSelectedMajor : (profile.major || 'عام')).replace(/\s+/g, '_');
   const channelId = activeTab === 'group'
-    ? `group_${cohortSafe}`
+    ? `group_${cohortSafe}_${majorSafe}`
     : (selectedFriend ? `private_${getPrivateChatKey(profile.uid, selectedFriend.uid)}` : null);
 
   // typing status listener
@@ -119,16 +131,115 @@ export default function UnifiedChatView({ profile, groupMessages, privateMessage
   };
 
   const handleInputChange = (e) => {
-    setNewMessage(e.target.value);
+    const val = e.target.value;
+    setNewMessage(val);
 
     // Trigger typing online status
     updateTypingStatus(true);
-
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => { updateTypingStatus(false); }, 2000);
 
-    typingTimeoutRef.current = setTimeout(() => {
-      updateTypingStatus(false);
-    }, 2000);
+    // Mentions logic
+    const cursorPosition = e.target.selectionStart;
+    const textBeforeCursor = val.slice(0, cursorPosition);
+    const lastAtSymbolIndex = textBeforeCursor.lastIndexOf('@');
+
+    if (lastAtSymbolIndex !== -1) {
+      const isStartOfWord = lastAtSymbolIndex === 0 || val[lastAtSymbolIndex - 1] === ' ';
+      if (isStartOfWord) {
+        const query = textBeforeCursor.slice(lastAtSymbolIndex + 1);
+        if (!query.includes(' ')) {
+          setMentionQuery(query);
+          const participantsMap = new Map();
+
+          // 1. Add admins for this cohort
+          studentDirectory.forEach(s => {
+            if (s.role === 'admin' || s.role === 'helper') {
+              const sCohort = s.assignedCohort || s.cohort;
+              const isGlobalAdmin = sCohort === 'كل الفرق' || sCohort === 'الجميع' || !sCohort;
+              const sMajor = s.assignedMajor || s.major;
+              const isGlobalMajor = sMajor === 'كل التخصصات' || sMajor === 'الجميع' || !sMajor;
+
+              const cohortMatches = sCohort === profile.cohort || isGlobalAdmin;
+              const majorMatches = sMajor === profile.major || isGlobalMajor;
+
+              if (s.uid !== profile.uid && cohortMatches && majorMatches) {
+                const displayName = s.adminNickname || 'الدعم الفني';
+                participantsMap.set(s.uid, { uid: s.uid, name: displayName, role: 'admin' });
+              }
+            }
+          });
+
+          // 2. Add recent participants from chat
+          if (activeTab === 'group') {
+            groupMessages.forEach(msg => {
+              // Don't add admins here so they don't appear twice
+              if ((msg.role !== 'admin' && msg.role !== 'helper') && msg.senderId !== profile.uid && !participantsMap.has(msg.senderId)) {
+                participantsMap.set(msg.senderId, { uid: msg.senderId, name: msg.senderName, role: msg.role || 'student' });
+              }
+            });
+          } else if (activeTab === 'private' && selectedFriend) {
+            participantsMap.set(selectedFriend.uid, { uid: selectedFriend.uid, name: selectedFriend.name, role: selectedFriend.role || 'student' });
+          }
+
+          const allCandidates = Array.from(participantsMap.values());
+          const availableMentions = allCandidates.filter(s =>
+            s.name.toLowerCase().includes(query.toLowerCase())
+          ).slice(0, 5);
+          
+          setMentionList(availableMentions);
+          setMentionCursorIndex(0);
+          return;
+        }
+      }
+    }
+    setMentionQuery(null);
+  };
+
+  const insertMention = (student) => {
+    const val = newMessage;
+    const cursorPosition = inputRef.current?.selectionStart || val.length;
+    const textBeforeCursor = val.slice(0, cursorPosition);
+    const lastAtSymbolIndex = textBeforeCursor.lastIndexOf('@');
+
+    if (lastAtSymbolIndex !== -1) {
+      const textBeforeMention = val.slice(0, lastAtSymbolIndex);
+      const textAfterCursor = val.slice(cursorPosition);
+      const newText = textBeforeMention + '@' + student.name.replace(/\s+/g, '_') + ' ' + textAfterCursor;
+      setNewMessage(newText);
+      setMentionQuery(null);
+      inputRef.current?.focus();
+    }
+  };
+
+  const handleReportSubmit = async (e) => {
+    e.preventDefault();
+    if (!reportReason.trim() || !reportingMsg) return;
+    setReportSubmitting(true);
+    try {
+      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'chat_reports'), {
+        messageId: reportingMsg.id,
+        messageText: reportingMsg.text,
+        senderId: reportingMsg.senderId,
+        senderName: reportingMsg.senderName,
+        reporterId: profile.uid,
+        reporterName: profile.name,
+        cohort: profile.cohort || 'الفرقة الأولى',
+        major: profile.major || 'عام',
+        chatCollection: activeTab === 'group' ? `chat_${cohortSafe}_${majorSafe}` : 'private_chats',
+        reason: reportReason,
+        timestamp: serverTimestamp(),
+        status: 'pending'
+      });
+      setReportingMsg(null);
+      setReportReason('');
+      alert("تم إرسال البلاغ للإدارة بنجاح. شكراً لتعاونك.");
+    } catch (err) {
+      console.error("Report error:", err);
+      alert("حدث خطأ أثناء الإرسال، يرجى المحاولة لاحقاً.");
+    } finally {
+      setReportSubmitting(false);
+    }
   };
 
   // Retrieve friends (accepted friendships)
@@ -180,8 +291,8 @@ export default function UnifiedChatView({ profile, groupMessages, privateMessage
     // College Profanity Filter & Auto-Moderation (رقابة الكلية التلقائية للذوق العام)
     const badWords = [
       'غبي', 'حمار', 'كلب', 'حيوان', 'كافر', 'معرص', 'خول', 'متخلف', 'وسخ', 'وسخه',
-      'زبالة', 'زباله', 'تافه', 'قذر', 'شرموط', 'شرموطه', 'قحبة', 'قحبه', 'كسك', 
-      'بضان', 'احا', 'أحا', 'عرص', 'شاذ', 'منيوك', 'نيك', 'ينيك', 'طيز', 'طيزك', 
+      'زبالة', 'زباله', 'تافه', 'قذر', 'شرموط', 'شرموطه', 'قحبة', 'قحبه', 'كسك',
+      'بضان', 'احا', 'أحا', 'عرص', 'شاذ', 'منيوك', 'نيك', 'ينيك', 'طيز', 'طيزك',
       'لبوة', 'لبوه', 'نجس', 'ابن الكلب', 'ابن كلب'
     ];
     let censoredText = newMessage;
@@ -195,17 +306,55 @@ export default function UnifiedChatView({ profile, groupMessages, privateMessage
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
 
     try {
+      // extract mentions looking for @username
+      const mentions = [];
+      studentDirectory.forEach(s => {
+        const displayName = (s.role === 'admin' || s.role === 'helper') ? (s.adminNickname || 'الدعم الفني') : s.name;
+        const mentionHandle = '@' + displayName.replace(/\s+/g, '_');
+        if (newMessage.includes(mentionHandle)) {
+          mentions.push(s.uid);
+        }
+      });
+
       if (activeTab === 'group') {
-        const chatRef = collection(db, 'artifacts', appId, 'public', 'data', `chat_${cohortSafe}`);
-        await addDoc(chatRef, {
+        const chatRef = collection(db, 'artifacts', appId, 'public', 'data', `chat_${cohortSafe}_${majorSafe}`);
+        const newDoc = await addDoc(chatRef, {
           text: censoredText,
+          mentions: mentions,
           senderId: profile.uid,
           senderName: profile.name,
+          senderNickname: profile.role === 'admin' ? (profile.adminNickname || 'الدعم الفني') : null,
+          role: profile.role || 'student',
           deleted: false,
-          replyTo: replyTarget ? { text: replyTarget.text, senderName: replyTarget.senderName } : null,
+          replyTo: replyTarget ? { 
+            text: replyTarget.text, 
+            senderName: replyTarget.role === 'admin' 
+              ? (studentDirectory.find(s => s.uid === replyTarget.senderId)?.adminNickname || 'الدعم الفني') 
+              : replyTarget.senderName 
+          } : null,
           timestamp: serverTimestamp(),
           reactions: {}
         });
+
+        // Write to admin_mentions central collection for each admin mentioned
+        if (mentions.length > 0) {
+          mentions.forEach(async (mentionedUid) => {
+            const isStaff = studentDirectory.find(s => s.uid === mentionedUid && (s.role === 'admin' || s.role === 'helper'));
+            if (isStaff) {
+              await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'admin_mentions'), {
+                messageId: newDoc.id,
+                mentionerId: profile.uid,
+                mentionerName: profile.name,
+                adminId: mentionedUid,
+                text: censoredText,
+                cohort: profile.cohort,
+                major: profile.major,
+                timestamp: serverTimestamp(),
+                read: false
+              });
+            }
+          });
+        }
       } else {
         if (!selectedFriend) return;
         const chatKey = getPrivateChatKey(profile.uid, selectedFriend.uid);
@@ -213,10 +362,18 @@ export default function UnifiedChatView({ profile, groupMessages, privateMessage
         await addDoc(chatRef, {
           chatKey,
           text: censoredText,
+          mentions: mentions,
           senderId: profile.uid,
           senderName: profile.name,
+          senderNickname: profile.role === 'admin' ? (profile.adminNickname || 'الدعم الفني') : null,
+          role: profile.role || 'student',
           deleted: false,
-          replyTo: replyTarget ? { text: replyTarget.text, senderName: replyTarget.senderName } : null,
+          replyTo: replyTarget ? { 
+            text: replyTarget.text, 
+            senderName: replyTarget.role === 'admin' 
+              ? (studentDirectory.find(s => s.uid === replyTarget.senderId)?.adminNickname || 'الدعم الفني') 
+              : replyTarget.senderName 
+          } : null,
           timestamp: serverTimestamp(),
           reactions: {},
           read: false
@@ -232,7 +389,7 @@ export default function UnifiedChatView({ profile, groupMessages, privateMessage
 
   const deleteMessage = async (msgId, isPrivate) => {
     try {
-      const collectionName = isPrivate ? 'private_chats' : `chat_${cohortSafe}`;
+      const collectionName = isPrivate ? 'private_chats' : `chat_${cohortSafe}_${majorSafe}`;
       const docRef = doc(db, 'artifacts', appId, 'public', 'data', collectionName, msgId);
       await updateDoc(docRef, {
         deleted: true,
@@ -246,20 +403,20 @@ export default function UnifiedChatView({ profile, groupMessages, privateMessage
   const handleToggleReaction = async (msg, emoji) => {
     if (msg.deleted) return;
     try {
-      const collectionName = activeTab === 'private' ? 'private_chats' : `chat_${cohortSafe}`;
+      const collectionName = activeTab === 'private' ? 'private_chats' : `chat_${cohortSafe}_${majorSafe}`;
       const docRef = doc(db, 'artifacts', appId, 'public', 'data', collectionName, msg.id);
 
       const currentReactions = msg.reactions || {};
       let updatedReactions = {};
-      
+
       // Remove user from all existing reactions first (Ensures only 1 reaction per user)
       Object.keys(currentReactions).forEach(key => {
         updatedReactions[key] = currentReactions[key].filter(uid => uid !== profile.uid);
       });
-      
+
       // Check if the user was already reacting with THIS specific emoji
       const hadThisEmoji = (currentReactions[emoji] || []).includes(profile.uid);
-      
+
       // If they didn't have this emoji, add them to it (if they did, it remains removed = toggle off)
       if (!hadThisEmoji) {
         updatedReactions[emoji] = [...(updatedReactions[emoji] || []), profile.uid];
@@ -294,10 +451,10 @@ export default function UnifiedChatView({ profile, groupMessages, privateMessage
     const touch = e.touches[0];
     const diffX = touch.clientX - longPressRef.current.startX;
     const diffY = touch.clientY - longPressRef.current.startY;
-    
+
     if (Math.abs(diffX) > 10 || Math.abs(diffY) > 10) {
       clearTimeout(longPressRef.current.timer);
-      
+
       // Swipe left to reply (negative diffX)
       if (diffX < -15 && Math.abs(diffY) < 30) {
         setSwipingMsgId(msg.id);
@@ -354,7 +511,35 @@ export default function UnifiedChatView({ profile, groupMessages, privateMessage
         <div className={`flex-none md:flex-1 overflow-x-auto md:overflow-x-hidden md:overflow-y-auto p-2 md:p-3 flex flex-row md:flex-col gap-2 no-scrollbar ${activeTab === 'group' ? 'flex-col overflow-y-auto max-h-32 md:max-h-full' : ''}`}>
           {activeTab === 'group' ? (
             <div className="p-3 md:p-4 bg-[#bfebd4]/20 border border-[#82af96] rounded-xl shrink-0">
-              <h4 className="font-black text-xs md:text-sm text-[#0e5e6f] dark:text-[#bfebd4] mb-1">📢 شات دفعة {profile.cohort}</h4>
+              {profile.role === 'admin' ? (
+                <div className="mb-2 flex flex-col gap-2">
+                  <label className="text-xs font-black text-[#0e5e6f] dark:text-[#bfebd4] block">اختر الفرقة والتخصص لمراقبة الشات:</label>
+                  <select
+                    value={adminSelectedCohort}
+                    onChange={(e) => setAdminSelectedCohort(e.target.value)}
+                    className="w-full text-xs p-1.5 rounded-lg border border-[#82af96] bg-white dark:bg-[#09171a] text-[#0e5e6f] dark:text-[#bfebd4] font-bold outline-none"
+                  >
+                    <option value="الفرقة الأولى">الفرقة الأولى</option>
+                    <option value="الفرقة الثانية">الفرقة الثانية</option>
+                    <option value="الفرقة الثالثة">الفرقة الثالثة</option>
+                    <option value="الفرقة الرابعة">الفرقة الرابعة</option>
+                  </select>
+                  <select
+                    value={adminSelectedMajor}
+                    onChange={(e) => setAdminSelectedMajor(e.target.value)}
+                    className="w-full text-xs p-1.5 rounded-lg border border-[#82af96] bg-white dark:bg-[#09171a] text-[#0e5e6f] dark:text-[#bfebd4] font-bold outline-none"
+                  >
+                    <option value="عام">عام</option>
+                    <option value="علوم حاسب">علوم حاسب</option>
+                    <option value="نظم معلومات">نظم معلومات</option>
+                    <option value="إدارة أعمال">إدارة أعمال</option>
+                    <option value="محاسبة">محاسبة</option>
+                    <option value="التسويق">التسويق</option>
+                  </select>
+                </div>
+              ) : (
+                <h4 className="font-black text-xs md:text-sm text-[#0e5e6f] dark:text-[#bfebd4] mb-1">📢 شات الدفعة: {profile.cohort} - {profile.major || 'عام'}</h4>
+              )}
               <p className="text-[10px] md:text-xs text-slate-800 dark:text-slate-300 leading-relaxed font-semibold">
                 شات عام للدفعة. يتم حذف جميع الرسائل نهائياً بعد مرور 3 أيام للحفاظ على الخصوصية والمساحة.
               </p>
@@ -503,7 +688,7 @@ export default function UnifiedChatView({ profile, groupMessages, privateMessage
                       </div>
                     )}
 
-                    <div 
+                    <div
                       className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[70%] relative transition-transform duration-75`}
                       style={swipingMsgId === msg.id ? { transform: `translateX(${swipeOffset}px)` } : {}}
                       onTouchStart={(e) => handleTouchStart(e, msg)}
@@ -514,7 +699,10 @@ export default function UnifiedChatView({ profile, groupMessages, privateMessage
                       {/* Sender Name */}
                       {!isMe && !msg.deleted && (
                         <span className="text-[10px] font-black text-slate-700 dark:text-slate-400 mr-1 mb-1 flex items-center gap-1">
-                          {msg.senderName}
+                          {(msg.role === 'admin' || msg.role === 'helper') && (
+                            <span className="bg-[#0e5e6f] text-white px-1.5 py-0.5 rounded text-[8px] mr-1">إدارة المنصة 🛡️</span>
+                          )}
+                          {(msg.role === 'admin' || msg.role === 'helper') ? (senderObj.adminNickname || 'الدعم الفني') : msg.senderName}
                           <VerifiedBadge />
                         </span>
                       )}
@@ -532,7 +720,9 @@ export default function UnifiedChatView({ profile, groupMessages, privateMessage
                           ? 'bg-slate-100/40 dark:bg-slate-900/40 text-slate-500 italic border-dashed border-slate-300 dark:border-slate-800'
                           : isMe
                             ? 'bg-gradient-to-br from-[#0e5e6f] to-[#178a9e] text-white border-[#0e5e6f] rounded-tl-none'
-                            : 'bg-white dark:bg-[#0d2328] text-slate-900 dark:text-slate-100 border-slate-300 dark:border-slate-800 rounded-tr-none'}
+                            : (msg.mentions?.includes(profile.uid) || msg.mentions?.includes('admin_support') && profile.role === 'admin')
+                              ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-900 dark:text-amber-100 border-amber-300 dark:border-amber-700/50 rounded-tr-none ring-2 ring-amber-400 dark:ring-amber-500 animate-pulse-once'
+                              : 'bg-white dark:bg-[#0d2328] text-slate-900 dark:text-slate-100 border-slate-300 dark:border-slate-800 rounded-tr-none'}
                       `}>
 
                         {/* Message Text with WhatsApp-style bottom layout for Time & Seen status */}
@@ -608,11 +798,21 @@ export default function UnifiedChatView({ profile, groupMessages, privateMessage
                             >
                               <CornerUpLeft size={14} />
                             </button>
-                            {(isMe || (activeTab === 'group' && profile.role === 'admin')) && (
+                            {!isMe && (
+                              <button
+                                type="button"
+                                onClick={() => { setReportingMsg(msg); setActiveReactionMsgId(null); }}
+                                title="إبلاغ للإدارة"
+                                className="p-1.5 text-orange-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
+                              >
+                                <Flag size={14} />
+                              </button>
+                            )}
+                            {(isMe || (activeTab === 'group' && (profile.role === 'admin' || profile.role === 'helper'))) && (
                               <button
                                 type="button"
                                 onClick={() => { deleteMessage(msg.id, activeTab === 'private'); setActiveReactionMsgId(null); }}
-                                title={profile.role === 'admin' && !isMe ? "حذف كمسؤول" : "حذف للجميع"}
+                                title={(profile.role === 'admin' || profile.role === 'helper') && !isMe ? "حذف كمسؤول" : "حذف للجميع"}
                                 className="p-1.5 text-rose-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
                               >
                                 <Trash2 size={14} />
@@ -620,13 +820,13 @@ export default function UnifiedChatView({ profile, groupMessages, privateMessage
                             )}
                           </div>
                         )}
-                        
+
                         {/* Overlay to close mobile reaction menu if clicked outside bubble */}
                         {activeReactionMsgId === msg.id && (
-                           <div 
-                             className="fixed inset-0 z-10 hidden sm:hidden" 
-                             onClick={(e) => { e.stopPropagation(); setActiveReactionMsgId(null); }}
-                           />
+                          <div
+                            className="fixed inset-0 z-10 hidden sm:hidden"
+                            onClick={(e) => { e.stopPropagation(); setActiveReactionMsgId(null); }}
+                          />
                         )}
                       </div>
                     </div>
@@ -661,6 +861,28 @@ export default function UnifiedChatView({ profile, groupMessages, privateMessage
         {/* Send Form & Custom Emoji selector panel */}
         {(activeTab !== 'private' || selectedFriend) && (
           <div className="p-4 bg-white/60 dark:bg-[#09171a]/60 border-t border-[#82af96] dark:border-[#3c6550] backdrop-blur-md relative">
+
+            {/* Quick Mention dropdown */}
+            {mentionQuery !== null && mentionList.length > 0 && (
+              <div className="absolute bottom-16 right-16 w-64 bg-white dark:bg-[#0d2328] rounded-xl border border-[#82af96] dark:border-[#3c6550] shadow-xl z-40 overflow-hidden text-right">
+                {mentionList.map((student, idx) => (
+                  <button
+                    key={student.uid}
+                    type="button"
+                    onClick={() => insertMention(student)}
+                    className={`w-full text-right px-4 py-2 text-sm flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-800 transition ${idx === mentionCursorIndex ? 'bg-slate-50 dark:bg-slate-800/50' : ''}`}
+                  >
+                    <div className="w-6 h-6 rounded-full bg-slate-200 overflow-hidden">
+                      <img src={getFriendAvatar(student)} alt={student.name} className="w-full h-full object-cover" />
+                    </div>
+                    <span className="font-bold text-slate-800 dark:text-slate-200">
+                      {student.name}
+                      {(student.role === 'admin' || student.role === 'helper') && <VerifiedBadge />}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* Quick Emoji bar */}
             {showEmojiPicker && (
@@ -707,9 +929,26 @@ export default function UnifiedChatView({ profile, groupMessages, privateMessage
               </button>
 
               <input
+                ref={inputRef}
                 type="text"
                 value={newMessage}
                 onChange={handleInputChange}
+                onKeyDown={(e) => {
+                  if (mentionQuery !== null && mentionList.length > 0) {
+                    if (e.key === 'ArrowDown') {
+                      e.preventDefault();
+                      setMentionCursorIndex(prev => (prev + 1) % mentionList.length);
+                    } else if (e.key === 'ArrowUp') {
+                      e.preventDefault();
+                      setMentionCursorIndex(prev => (prev - 1 + mentionList.length) % mentionList.length);
+                    } else if (e.key === 'Enter' || e.key === 'Tab') {
+                      e.preventDefault();
+                      insertMention(mentionList[mentionCursorIndex]);
+                    } else if (e.key === 'Escape') {
+                      setMentionQuery(null);
+                    }
+                  }
+                }}
                 placeholder="اكتب رسالتك الجامعية هنا..."
                 className="flex-1 input-academic font-black border-2 rounded-full px-5 py-3 focus:outline-none focus:ring-2 focus:ring-[#0e5e6f] text-xs md:text-sm"
               />
@@ -727,6 +966,63 @@ export default function UnifiedChatView({ profile, groupMessages, privateMessage
           </div>
         )}
       </div>
+
+      {/* Report Modal */}
+      {reportingMsg && (
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full shadow-2xl overflow-hidden border-2 border-orange-500/30">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-orange-500 shrink-0">
+                  <Flag size={20} />
+                </div>
+                <div>
+                  <h3 className="font-black text-lg text-slate-800 dark:text-slate-100">إبلاغ للإدارة</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">سيتم مراجعة الرسالة من قبل الإدارة لاتخاذ الإجراء المناسب.</p>
+                </div>
+              </div>
+
+              <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-xl mb-4 border border-slate-200 dark:border-slate-700">
+                <p className="text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">الرسالة المُبلّغ عنها:</p>
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{reportingMsg.text}</p>
+                <p className="text-[10px] text-slate-500 mt-1">بواسطة: {reportingMsg.senderName}</p>
+              </div>
+
+              <form onSubmit={handleReportSubmit}>
+                <label className="block text-sm font-black text-slate-700 dark:text-slate-300 mb-2">
+                  سبب الإبلاغ
+                </label>
+                <textarea
+                  value={reportReason}
+                  onChange={(e) => setReportReason(e.target.value)}
+                  placeholder="أكتب سبب الإبلاغ بوضوح (مثال: ألفاظ غير لائقة، تنمر، محتوى غير مناسب...)"
+                  className="w-full input-academic rounded-xl p-3 h-24 resize-none mb-6 text-sm"
+                  required
+                />
+
+                <div className="flex gap-3">
+                  <button
+                    type="submit"
+                    disabled={!reportReason.trim() || reportSubmitting}
+                    className="flex-1 py-3 bg-orange-500 hover:bg-orange-600 text-white font-black rounded-xl transition disabled:opacity-50 flex justify-center items-center gap-2"
+                  >
+                    {reportSubmitting ? 'جاري الإرسال...' : 'إرسال البلاغ'}
+                    {!reportSubmitting && <Flag size={16} />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setReportingMsg(null); setReportReason(''); }}
+                    className="px-6 py-3 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-black rounded-xl hover:bg-slate-300 dark:hover:bg-slate-700 transition"
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

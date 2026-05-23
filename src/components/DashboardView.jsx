@@ -96,7 +96,7 @@ export default function DashboardView({ profile, materials = [], alerts = [], ne
           <div className="bg-[#0e5e6f]/10 dark:bg-[#bfebd4]/10 border border-[#0e5e6f]/20 px-5 py-3 rounded-2xl text-right shrink-0">
             <p className="text-[10px] text-slate-500 dark:text-slate-400 font-black mb-1">رقم القيد الدراسي: {profile.studentId}</p>
             <h4 className="text-xs font-black text-[#0e5e6f] dark:text-[#bfebd4]">
-              🏫 {profile.cohort} • {profile.major}
+              {profile.cohort} • {profile.major}
             </h4>
           </div>
 
