@@ -193,11 +193,21 @@ export default function CoursesView({ materials, subView = 'books' }) {
               </h3>
             </div>
             <div className="flex-1 bg-slate-900 rounded-3xl overflow-hidden border border-slate-800 shadow-2xl relative" style={{ WebkitOverflowScrolling: 'touch' }}>
-              <iframe
-                src={previewPdfUrl}
-                title={previewPdfTitle}
+              <object
+                data={previewPdfUrl}
+                type="application/pdf"
                 className="w-full h-full border-none rounded-3xl bg-slate-800"
-              />
+              >
+                <div className="flex flex-col items-center justify-center h-full p-8 text-center bg-slate-800">
+                  <p className="text-white mb-6 font-bold leading-relaxed text-sm">متصفح هاتفك لا يدعم العرض المباشر لملفات PDF.<br/>يرجى تحميل الملف لفتحه.</p>
+                  <button onClick={() => {
+                    const a = document.createElement('a');
+                    a.href = previewPdfUrl;
+                    a.download = (previewPdfTitle || 'study-file') + '.pdf';
+                    a.click();
+                  }} className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 transition rounded-xl text-white font-black shadow-lg">تحميل وفتح الملف 📥</button>
+                </div>
+              </object>
             </div>
           </div>
         )}
@@ -292,11 +302,21 @@ export default function CoursesView({ materials, subView = 'books' }) {
               </h3>
             </div>
             <div className="flex-1 bg-slate-900 rounded-3xl overflow-hidden border border-slate-800 shadow-2xl relative" style={{ WebkitOverflowScrolling: 'touch' }}>
-              <iframe
-                src={previewPdfUrl}
-                title={previewPdfTitle}
+              <object
+                data={previewPdfUrl}
+                type="application/pdf"
                 className="w-full h-full border-none rounded-3xl bg-slate-800"
-              />
+              >
+                <div className="flex flex-col items-center justify-center h-full p-8 text-center bg-slate-800">
+                  <p className="text-white mb-6 font-bold leading-relaxed text-sm">متصفح هاتفك لا يدعم العرض المباشر لملفات PDF.<br/>يرجى تحميل الملف لفتحه.</p>
+                  <button onClick={() => {
+                    const a = document.createElement('a');
+                    a.href = previewPdfUrl;
+                    a.download = (previewPdfTitle || 'study-file') + '.pdf';
+                    a.click();
+                  }} className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 transition rounded-xl text-white font-black shadow-lg">تحميل وفتح الملف 📥</button>
+                </div>
+              </object>
             </div>
           </div>
         )}
@@ -391,11 +411,21 @@ export default function CoursesView({ materials, subView = 'books' }) {
               </h3>
             </div>
             <div className="flex-1 bg-slate-900 rounded-3xl overflow-hidden border border-slate-800 shadow-2xl relative" style={{ WebkitOverflowScrolling: 'touch' }}>
-              <iframe
-                src={previewPdfUrl}
-                title={previewPdfTitle}
+              <object
+                data={previewPdfUrl}
+                type="application/pdf"
                 className="w-full h-full border-none rounded-3xl bg-slate-800"
-              />
+              >
+                <div className="flex flex-col items-center justify-center h-full p-8 text-center bg-slate-800">
+                  <p className="text-white mb-6 font-bold leading-relaxed text-sm">متصفح هاتفك لا يدعم العرض المباشر لملفات PDF.<br/>يرجى تحميل الملف لفتحه.</p>
+                  <button onClick={() => {
+                    const a = document.createElement('a');
+                    a.href = previewPdfUrl;
+                    a.download = (previewPdfTitle || 'study-file') + '.pdf';
+                    a.click();
+                  }} className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 transition rounded-xl text-white font-black shadow-lg">تحميل وفتح الملف 📥</button>
+                </div>
+              </object>
             </div>
           </div>
         )}

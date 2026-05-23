@@ -200,6 +200,32 @@ export default function App() {
   const [mentionToast, setMentionToast] = useState(null);
   const [lastSeenGroupChat, setLastSeenGroupChat] = useState(parseInt(localStorage.getItem('lastSeenGroupChat') || '0'));
 
+  // Sync currentView with Browser History (Back/Forward arrows)
+  useEffect(() => {
+    const handlePopState = (event) => {
+      if (event.state && event.state.view) {
+        setCurrentView(event.state.view);
+      } else {
+        setCurrentView('dashboard');
+      }
+    };
+    
+    // Set initial state without changing URL
+    if (!window.history.state || !window.history.state.view) {
+      window.history.replaceState({ view: currentView }, '', window.location.pathname);
+    }
+    
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  useEffect(() => {
+    // Push new state when user navigates
+    if (window.history.state?.view !== currentView) {
+      window.history.pushState({ view: currentView }, '', window.location.pathname);
+    }
+  }, [currentView]);
+
   useEffect(() => {
     if (currentView === 'chat') {
       const now = Date.now();
